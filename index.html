@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Human Sense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Camera feed (hidden, used for processing) -->
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
+
+    <!-- Dashboard -->
+    <div class="dashboard">
+      <div class="header">
+        <h1>Human Sense</h1>
+        <div class="status" id="status">初始化中...</div>
+      </div>
+
+      <div class="panels">
+        <!-- Presence -->
+        <div class="panel" id="panel-presence">
+          <div class="panel-title">存在感知</div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="label">人数</span>
+              <span class="value" id="m-count">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">距离</span>
+              <span class="value" id="m-distance">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">面对屏幕</span>
+              <span class="value" id="m-facing">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attention -->
+        <div class="panel" id="panel-attention">
+          <div class="panel-title">注意力</div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="label">注视区域</span>
+              <span class="value" id="m-gaze">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">眨眼频率</span>
+              <span class="value" id="m-blink">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">专注度</span>
+              <span class="value" id="m-focus">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Emotion -->
+        <div class="panel" id="panel-emotion">
+          <div class="panel-title">情绪/姿态</div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="label">表情</span>
+              <span class="value" id="m-expression">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">姿态</span>
+              <span class="value" id="m-posture">-</span>
+            </div>
+            <div class="metric">
+              <span class="label">头部倾斜</span>
+              <span class="value" id="m-tilt">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Synthesis -->
+        <div class="panel panel-wide" id="panel-synthesis">
+          <div class="panel-title">综合判断</div>
+          <div class="synthesis-text" id="m-synthesis">等待感知数据...</div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline" id="timeline">
+        <div class="panel-title">感知时间线</div>
+        <div class="timeline-entries" id="timeline-entries"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
