@@ -7,92 +7,117 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
-    <!-- Camera feed (hidden, used for processing) -->
-    <video id="camera" autoplay playsinline></video>
-    <canvas id="overlay"></canvas>
+  <!-- Start -->
+  <div class="start-overlay" id="start-overlay">
+    <div class="start-logo">👁</div>
+    <button class="start-btn" id="start-btn">Human Sense</button>
+    <p class="start-hint">摄像头感知 · 点击开始</p>
+  </div>
 
-    <!-- Start overlay -->
-    <div class="start-overlay" id="start-overlay">
-      <button class="start-btn" id="start-btn">开始感知</button>
-      <p class="start-hint">需要摄像头权限</p>
-    </div>
+  <div class="app" id="app" style="display:none">
+    <!-- Left: Camera + Overlay -->
+    <div class="camera-section">
+      <div class="camera-container">
+        <video id="camera" autoplay playsinline></video>
+        <canvas id="overlay"></canvas>
+        
+        <!-- Gaze crosshair overlay on camera -->
+        <div class="gaze-indicator" id="gaze-indicator">
+          <div class="gaze-dot"></div>
+        </div>
 
-    <!-- Dashboard -->
-    <div class="dashboard">
-      <div class="header">
-        <h1>Human Sense</h1>
-        <div class="status" id="status">初始化中...</div>
+        <!-- Face status badge -->
+        <div class="face-badge" id="face-badge">
+          <span class="face-count" id="face-count">0</span>
+          <span class="face-label">人</span>
+        </div>
+
+        <!-- Distance badge -->
+        <div class="distance-badge" id="distance-badge">—</div>
       </div>
 
-      <div class="panels">
-        <!-- Presence -->
-        <div class="panel" id="panel-presence">
-          <div class="panel-title">存在感知</div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="label">人数</span>
-              <span class="value" id="m-count">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">距离</span>
-              <span class="value" id="m-distance">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">面对屏幕</span>
-              <span class="value" id="m-facing">-</span>
-            </div>
+      <!-- Attention bar -->
+      <div class="attention-bar-wrap">
+        <div class="attention-bar" id="attention-bar"></div>
+        <div class="attention-label">
+          <span>专注度</span>
+          <span id="attention-pct">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Sense panels -->
+    <div class="sense-section">
+      <div class="sense-header">
+        <h1>Human Sense</h1>
+        <div class="status-dot" id="status-dot"></div>
+      </div>
+
+      <!-- Synthesis — the big headline -->
+      <div class="synthesis-card" id="synthesis-card">
+        <div class="synthesis-text" id="synthesis-text">初始化中...</div>
+      </div>
+
+      <!-- Sense grid -->
+      <div class="sense-grid">
+        <!-- Gaze -->
+        <div class="sense-card">
+          <div class="sense-icon">👀</div>
+          <div class="sense-data">
+            <div class="sense-label">注视</div>
+            <div class="sense-value" id="s-gaze">—</div>
           </div>
         </div>
 
-        <!-- Attention -->
-        <div class="panel" id="panel-attention">
-          <div class="panel-title">注意力</div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="label">注视区域</span>
-              <span class="value" id="m-gaze">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">眨眼频率</span>
-              <span class="value" id="m-blink">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">专注度</span>
-              <span class="value" id="m-focus">-</span>
-            </div>
+        <!-- Expression -->
+        <div class="sense-card">
+          <div class="sense-icon" id="s-expr-icon">😐</div>
+          <div class="sense-data">
+            <div class="sense-label">表情</div>
+            <div class="sense-value" id="s-expression">—</div>
           </div>
         </div>
 
-        <!-- Emotion -->
-        <div class="panel" id="panel-emotion">
-          <div class="panel-title">情绪/姿态</div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="label">表情</span>
-              <span class="value" id="m-expression">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">姿态</span>
-              <span class="value" id="m-posture">-</span>
-            </div>
-            <div class="metric">
-              <span class="label">头部倾斜</span>
-              <span class="value" id="m-tilt">-</span>
-            </div>
+        <!-- Posture -->
+        <div class="sense-card">
+          <div class="sense-icon">🧍</div>
+          <div class="sense-data">
+            <div class="sense-label">姿态</div>
+            <div class="sense-value" id="s-posture">—</div>
           </div>
         </div>
 
-        <!-- Synthesis -->
-        <div class="panel panel-wide" id="panel-synthesis">
-          <div class="panel-title">综合判断</div>
-          <div class="synthesis-text" id="m-synthesis">等待感知数据...</div>
+        <!-- Blink -->
+        <div class="sense-card">
+          <div class="sense-icon">💧</div>
+          <div class="sense-data">
+            <div class="sense-label">眨眼</div>
+            <div class="sense-value" id="s-blink">—</div>
+          </div>
+        </div>
+
+        <!-- Facing -->
+        <div class="sense-card">
+          <div class="sense-icon" id="s-facing-icon">🎯</div>
+          <div class="sense-data">
+            <div class="sense-label">面对</div>
+            <div class="sense-value" id="s-facing">—</div>
+          </div>
+        </div>
+
+        <!-- Tilt -->
+        <div class="sense-card">
+          <div class="sense-icon">↕️</div>
+          <div class="sense-data">
+            <div class="sense-label">倾斜</div>
+            <div class="sense-value" id="s-tilt">—</div>
+          </div>
         </div>
       </div>
 
       <!-- Timeline -->
-      <div class="timeline" id="timeline">
-        <div class="panel-title">感知时间线</div>
+      <div class="timeline-section">
+        <div class="timeline-title">感知日志</div>
         <div class="timeline-entries" id="timeline-entries"></div>
       </div>
     </div>

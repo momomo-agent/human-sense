@@ -1,56 +1,111 @@
 /**
- * Dashboard — renders sense data to DOM
+ * Dashboard v2 — visual-first, card-based
  */
 export class Dashboard {
   constructor() {
     this.els = {
-      count: document.getElementById('m-count'),
-      distance: document.getElementById('m-distance'),
-      facing: document.getElementById('m-facing'),
-      gaze: document.getElementById('m-gaze'),
-      blink: document.getElementById('m-blink'),
-      focus: document.getElementById('m-focus'),
-      expression: document.getElementById('m-expression'),
-      posture: document.getElementById('m-posture'),
-      tilt: document.getElementById('m-tilt'),
-      synthesis: document.getElementById('m-synthesis'),
+      // Camera overlays
+      faceCount: document.getElementById('face-count'),
+      faceBadge: document.getElementById('face-badge'),
+      distanceBadge: document.getElementById('distance-badge'),
+      gazeIndicator: document.getElementById('gaze-indicator'),
+      attentionBar: document.getElementById('attention-bar'),
+      attentionPct: document.getElementById('attention-pct'),
+      statusDot: document.getElementById('status-dot'),
+
+      // Sense cards
+      gaze: document.getElementById('s-gaze'),
+      expression: document.getElementById('s-expression'),
+      exprIcon: document.getElementById('s-expr-icon'),
+      posture: document.getElementById('s-posture'),
+      blink: document.getElementById('s-blink'),
+      facing: document.getElementById('s-facing'),
+      facingIcon: document.getElementById('s-facing-icon'),
+      tilt: document.getElementById('s-tilt'),
+
+      // Synthesis
+      synthesisText: document.getElementById('synthesis-text'),
+      synthesisCard: document.getElementById('synthesis-card'),
+
+      // Timeline
       timeline: document.getElementById('timeline-entries'),
     }
     this.lastEventCount = 0
+    this.active = false
   }
 
   update(result) {
+    if (!result) return
     const { presence, attention, emotion, synthesis } = result
 
-    // Presence
-    this.els.count.textContent = presence.count
-    this.els.distance.textContent = presence.count > 0 ? `${presence.distance}x` : '-'
-    this.els.facing.textContent = presence.count > 0 ? (presence.facing ? '✓ 是' : '✗ 否') : '-'
-    this.els.facing.style.color = presence.facing ? '#4ade80' : '#f87171'
+    // Activate status
+    if (!this.active) {
+      this.active = true
+      this.els.statusDot.classList.add('active')
+    }
 
-    // Attention
-    this.els.gaze.textContent = attention.gaze.region
-    this.els.blink.textContent = attention.blinkRate > 0 ? `${attention.blinkRate}/min` : '-'
-    this.els.focus.textContent = attention.focus.level !== '-' ? 
-      `${attention.focus.level} ${attention.focus.score}%` : '-'
+    // Face count
+    this.els.faceCount.textContent = presence.count
+    this.els.faceCount.style.color = presence.count > 0 ? 'var(--green)' : 'var(--red)'
+
+    // Distance
+    if (presence.count > 0 && presence.distance !== '-') {
+      const d = parseFloat(presence.distance)
+      let label = '近'
+      if (d > 1.5) label = '远'
+      else if (d > 0.8) label = '适中'
+      this.els.distanceBadge.textContent = `📏 ${label}`
+    } else {
+      this.els.distanceBadge.textContent = '—'
+    }
+
+    // Gaze indicator position on camera
+    if (attention.gaze && attention.gaze.x !== undefined) {
+      const gx = 50 - attention.gaze.x * 40  // invert X for mirrored camera
+      const gy = 50 + attention.gaze.y * 40
+      this.els.gazeIndicator.style.left = `${Math.max(10, Math.min(90, gx))}%`
+      this.els.gazeIndicator.style.top = `${Math.max(10, Math.min(90, gy))}%`
+      this.els.gazeIndicator.style.opacity = presence.count > 0 ? '1' : '0'
+    }
+
+    // Attention bar
+    const focusScore = attention.focus.score || 0
+    this.els.attentionBar.style.width = `${focusScore}%`
+    this.els.attentionBar.className = 'attention-bar'
+    if (focusScore < 40) this.els.attentionBar.classList.add('low')
+    else if (focusScore < 70) this.els.attentionBar.classList.add('medium')
+    this.els.attentionPct.textContent = focusScore > 0 ? `${focusScore}%` : '—'
+
+    // Sense cards
+    this.els.gaze.textContent = attention.gaze.region || '—'
     
-    // Color code focus
-    const focusColors = { '高': '#4ade80', '中': '#fbbf24', '低': '#f87171' }
-    this.els.focus.style.color = focusColors[attention.focus.level] || '#e0e0e0'
+    // Expression — extract emoji and text separately
+    const exprText = emotion.expression || '—'
+    const emojiMatch = exprText.match(/^([\p{Emoji}]+)\s*/u)
+    if (emojiMatch) {
+      this.els.exprIcon.textContent = emojiMatch[1]
+      this.els.expression.textContent = exprText.slice(emojiMatch[0].length)
+    } else {
+      this.els.expression.textContent = exprText
+    }
 
-    // Emotion
-    this.els.expression.textContent = emotion.expression
-    this.els.posture.textContent = emotion.posture
-    this.els.tilt.textContent = emotion.tilt
+    this.els.posture.textContent = emotion.posture || '—'
+    this.els.blink.textContent = attention.blinkRate > 0 ? `${attention.blinkRate}/min` : '—'
+    
+    this.els.facing.textContent = presence.facing ? '是' : '否'
+    this.els.facing.style.color = presence.facing ? 'var(--green)' : 'var(--red)'
+    this.els.facingIcon.textContent = presence.facing ? '🎯' : '🚫'
+
+    this.els.tilt.textContent = emotion.tilt || '—'
 
     // Synthesis
-    this.els.synthesis.textContent = synthesis.text
+    this.els.synthesisText.textContent = synthesis.text
 
     // Timeline
     if (synthesis.events.length !== this.lastEventCount) {
       this.lastEventCount = synthesis.events.length
       this.els.timeline.innerHTML = synthesis.events
-        .slice(-20)
+        .slice(-15)
         .reverse()
         .map(e => `<div class="timeline-entry">
           <span class="time">${e.time}</span>
