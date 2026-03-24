@@ -491,51 +491,8 @@ export class SenseEngine {
   }
 
   drawOverlay(results) {
-    const ctx = this.ctx
-    const w = this.overlay.width
-    const h = this.overlay.height
-    ctx.clearRect(0, 0, w, h)
-
-    if (!results.faceLandmarks) return
-
-    for (const landmarks of results.faceLandmarks) {
-      // Face oval
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)'
-      ctx.lineWidth = 1
-
-      const ovalIndices = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
-        397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93,
-        234, 127, 162, 21, 54, 103, 67, 109, 10]
-
-      ctx.beginPath()
-      const first = landmarks[ovalIndices[0]]
-      ctx.moveTo(first.x * w, first.y * h)
-      for (let i = 1; i < ovalIndices.length; i++) {
-        const p = landmarks[ovalIndices[i]]
-        ctx.lineTo(p.x * w, p.y * h)
-      }
-      ctx.stroke()
-
-      // Eye corners
-      ctx.fillStyle = 'rgba(96, 165, 250, 0.6)'
-      for (const i of [33, 133, 362, 263]) {
-        const p = landmarks[i]
-        ctx.beginPath()
-        ctx.arc(p.x * w, p.y * h, 2, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // Iris
-      if (landmarks.length >= 478) {
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)'
-        for (const i of [468, 473]) {
-          const p = landmarks[i]
-          ctx.beginPath()
-          ctx.arc(p.x * w, p.y * h, 3, 0, Math.PI * 2)
-          ctx.fill()
-        }
-      }
-    }
+    // Clear — no debug overlay in production
+    this.ctx.clearRect(0, 0, this.overlay.width, this.overlay.height)
   }
 
   buildResult(count, facing, distance, attention, emotion, pose) {
