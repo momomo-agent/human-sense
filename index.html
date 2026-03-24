@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Human Sense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Start -->
+  <div class="start-overlay" id="start-overlay">
+    <div class="start-logo">👁</div>
+    <div class="camera-select-wrap">
+      <select id="camera-select" class="camera-select">
+        <option value="">加载摄像头列表...</option>
+      </select>
+    </div>
+    <button class="start-btn" id="start-btn">开始感知</button>
+    <p class="start-hint">摄像头感知 · 点击开始</p>
+  </div>
+
+  <div class="app" id="app" style="display:none">
+    <!-- Fullscreen camera background -->
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
+
+    <!-- HUD layer -->
+    <div class="hud">
+      <!-- Top bar -->
+      <div class="hud-top">
+        <div class="hud-badge">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="hud-title">Human Sense</span>
+        </div>
+        <div class="hud-badges-right">
+          <div class="hud-pill" id="face-pill">
+            <span id="face-count">0</span> 人
+          </div>
+          <div class="hud-pill" id="distance-pill">—</div>
+          <select class="camera-switch" id="camera-switch" title="切换摄像头"></select>
+        </div>
+      </div>
+
+      <!-- Gaze dot -->
+      <div class="gaze-ring" id="gaze-ring">
+        <div class="gaze-dot"></div>
+      </div>
+
+      <!-- Bottom HUD — all data, horizontal layout -->
+      <div class="hud-bottom">
+        <!-- Attention bar — thin, full width top -->
+        <div class="attention-track">
+          <div class="attention-fill" id="attention-bar"></div>
+        </div>
+
+        <div class="bottom-row">
+          <!-- Synthesis — left -->
+          <div class="synth-block">
+            <div class="synth-text" id="synthesis-text">等待感知...</div>
+          </div>
+
+          <!-- All sense data — right, compact grid -->
+          <div class="sense-chips">
+            <div class="chip-group">
+              <span class="chip-label">注视</span>
+              <span class="chip-val" id="s-gaze">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">表情</span>
+              <span class="chip-val"><span id="s-expr-icon">😐</span> <span id="s-expression">—</span></span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">姿态</span>
+              <span class="chip-val" id="s-posture">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">眨眼</span>
+              <span class="chip-val" id="s-blink">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">面对</span>
+              <span class="chip-val"><span id="s-facing-icon">🎯</span> <span id="s-facing">—</span></span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">倾斜</span>
+              <span class="chip-val" id="s-tilt">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">专注</span>
+              <span class="chip-val" id="attention-pct">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">手势</span>
+              <span class="chip-val"><span id="s-hand-count">0</span> <span id="s-gesture">—</span></span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">手指</span>
+              <span class="chip-val" id="s-fingers">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">肩宽</span>
+              <span class="chip-val" id="s-shoulders">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">躯干</span>
+              <span class="chip-val" id="s-body-posture">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">占比</span>
+              <span class="chip-val" id="s-person-ratio">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">物体</span>
+              <span class="chip-val" id="s-objects">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline (collapsible, bottom-right) -->
+      <div class="timeline-float" id="timeline-float">
+        <div class="timeline-entries" id="timeline-entries"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
