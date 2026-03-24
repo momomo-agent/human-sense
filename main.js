@@ -18,6 +18,15 @@ const overlay = document.getElementById('overlay')
 const statusEl = document.getElementById('status')
 
 async function init() {
+  // Wait for user interaction (autoplay policy)
+  const startBtn = document.getElementById('start-btn')
+  const startOverlay = document.getElementById('start-overlay')
+  
+  await new Promise(resolve => {
+    startBtn.addEventListener('click', resolve, { once: true })
+  })
+  startOverlay.style.display = 'none'
+
   try {
     // 1. Camera
     const stream = await navigator.mediaDevices.getUserMedia({
