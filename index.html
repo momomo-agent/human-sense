@@ -46,74 +46,123 @@
         <div class="gaze-dot"></div>
       </div>
 
-      <!-- Bottom HUD — all data, horizontal layout -->
+      <!-- Bottom HUD — 4-section card panel -->
       <div class="hud-bottom">
-        <!-- Attention bar — thin, full width top -->
-        <div class="attention-track">
-          <div class="attention-fill" id="attention-bar"></div>
+        <div class="bottom-panel">
+
+          <!-- 1. Face -->
+          <div class="panel-section" id="section-face">
+            <div class="section-header">👤 面部</div>
+            <div class="section-body face-section">
+              <div class="face-main">
+                <span class="big-emoji" id="s-expr-icon">😐</span>
+                <span class="face-expr-text" id="s-expression">平静</span>
+              </div>
+              <div class="face-details">
+                <div class="detail-row">
+                  <span class="detail-icon" id="s-facing-icon">🎯</span>
+                  <span class="detail-val" id="s-facing">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">姿态</span>
+                  <span class="detail-val" id="s-posture">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">倾斜</span>
+                  <span class="detail-val" id="s-tilt">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-divider"></div>
+
+          <!-- 2. Attention -->
+          <div class="panel-section" id="section-attention">
+            <div class="section-header">🧠 注意力</div>
+            <div class="section-body attention-section">
+              <div class="focus-ring-wrap">
+                <svg class="focus-ring" viewBox="0 0 80 80">
+                  <circle class="focus-ring-bg" cx="40" cy="40" r="34" />
+                  <circle class="focus-ring-fill" id="focus-ring-fill" cx="40" cy="40" r="34"
+                    stroke-dasharray="213.6" stroke-dashoffset="213.6" />
+                </svg>
+                <span class="focus-pct" id="attention-pct">—</span>
+              </div>
+              <div class="attention-details">
+                <div class="detail-row">
+                  <span class="detail-label">注视</span>
+                  <span class="detail-val" id="s-gaze">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">眨眼</span>
+                  <span class="detail-val" id="s-blink">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-divider"></div>
+
+          <!-- 3. Hands -->
+          <div class="panel-section" id="section-hands">
+            <div class="section-header">✋ 手势</div>
+            <div class="section-body hands-section">
+              <div class="gesture-main">
+                <span class="big-emoji" id="s-gesture-emoji">—</span>
+                <span class="gesture-label" id="s-gesture">—</span>
+              </div>
+              <div class="hands-indicators">
+                <div class="hand-indicator" id="hand-left">
+                  <span class="hand-side">🫲</span>
+                  <div class="finger-dots" id="fingers-left">
+                    <span class="fdot"></span><span class="fdot"></span><span class="fdot"></span><span class="fdot"></span><span class="fdot"></span>
+                  </div>
+                </div>
+                <div class="hand-indicator" id="hand-right">
+                  <span class="hand-side">🫱</span>
+                  <div class="finger-dots" id="fingers-right">
+                    <span class="fdot"></span><span class="fdot"></span><span class="fdot"></span><span class="fdot"></span><span class="fdot"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="action-label" id="s-action">—</div>
+            </div>
+          </div>
+
+          <div class="panel-divider"></div>
+
+          <!-- 4. Body -->
+          <div class="panel-section" id="section-body">
+            <div class="section-header">🏃 身体</div>
+            <div class="section-body body-section">
+              <div class="body-posture" id="s-body-posture">—</div>
+              <div class="body-details">
+                <div class="detail-row">
+                  <span class="detail-label">肩宽</span>
+                  <div class="ratio-bar-wrap">
+                    <div class="ratio-bar" id="shoulder-bar"></div>
+                  </div>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">躯干</span>
+                  <div class="ratio-bar-wrap">
+                    <div class="ratio-bar" id="torso-bar"></div>
+                  </div>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">占比</span>
+                  <span class="detail-val" id="s-person-ratio">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        <div class="bottom-row">
-          <!-- Synthesis — left -->
-          <div class="synth-block">
-            <div class="synth-text" id="synthesis-text">等待感知...</div>
-          </div>
-
-          <!-- All sense data — right, compact grid -->
-          <div class="sense-chips">
-            <div class="chip-group">
-              <span class="chip-label">注视</span>
-              <span class="chip-val" id="s-gaze">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">表情</span>
-              <span class="chip-val"><span id="s-expr-icon">😐</span> <span id="s-expression">—</span></span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">姿态</span>
-              <span class="chip-val" id="s-posture">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">眨眼</span>
-              <span class="chip-val" id="s-blink">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">面对</span>
-              <span class="chip-val"><span id="s-facing-icon">🎯</span> <span id="s-facing">—</span></span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">倾斜</span>
-              <span class="chip-val" id="s-tilt">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">专注</span>
-              <span class="chip-val" id="attention-pct">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">手势</span>
-              <span class="chip-val"><span id="s-hand-count">0</span> <span id="s-gesture">—</span></span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">手指</span>
-              <span class="chip-val" id="s-fingers">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">肩宽</span>
-              <span class="chip-val" id="s-shoulders">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">躯干</span>
-              <span class="chip-val" id="s-body-posture">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">占比</span>
-              <span class="chip-val" id="s-person-ratio">—</span>
-            </div>
-            <div class="chip-group">
-              <span class="chip-label">物体</span>
-              <span class="chip-val" id="s-objects">—</span>
-            </div>
-          </div>
+        <!-- Synthesis text below panel -->
+        <div class="synth-strip">
+          <span class="synth-text" id="synthesis-text">等待感知...</span>
         </div>
       </div>
 

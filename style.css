@@ -275,103 +275,265 @@ body {
   box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
 }
 
-/* ---- Bottom HUD ---- */
+/* ---- Bottom HUD — card panel ---- */
 .hud-bottom {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 16px;
+  padding: 0 16px 16px;
   gap: 6px;
 }
 
-/* Attention bar — centered, not full width */
-.attention-track {
-  width: auto;
-  min-width: 200px;
-  height: 3px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 2px;
-  overflow: hidden;
-  align-self: center;
-}
-
-.attention-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--green);
-  border-radius: 2px;
-  transition: width 0.3s ease-out, background 0.3s;
-  box-shadow: 0 0 8px rgba(34,197,94,0.2);
-}
-
-.attention-fill.medium {
-  background: var(--amber);
-  box-shadow: 0 0 8px rgba(245,158,11,0.2);
-}
-
-.attention-fill.low {
-  background: var(--red);
-  box-shadow: 0 0 8px rgba(239,68,68,0.2);
-}
-
-/* Bottom floating island */
-.bottom-row {
+.bottom-panel {
   display: flex;
   align-items: stretch;
-  gap: 10px;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.5);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 16px;
-  padding: 12px 20px;
-  width: auto;
-  max-width: 90vw;
+  padding: 10px 0;
+  max-width: 92vw;
 }
 
-.synth-block {
-  display: flex;
-  align-items: center;
-  padding-right: 14px;
-  border-right: 1px solid rgba(255,255,255,0.06);
+.panel-divider {
+  width: 1px;
+  background: rgba(255,255,255,0.06);
+  align-self: stretch;
+  flex-shrink: 0;
 }
 
-.synth-text {
-  font-size: 13px;
-  font-weight: 400;
-  color: rgba(255,255,255,0.9);
-  letter-spacing: -0.01em;
-  line-height: 1.4;
-  max-width: 260px;
-}
-
-.sense-chips {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: nowrap;
-}
-
-.chip-group {
+.panel-section {
+  flex: 1;
+  min-width: 0;
+  padding: 0 14px;
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.section-header {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* -- Face section -- */
+.face-section {
+  gap: 4px;
+}
+
+.face-main {
+  display: flex;
   align-items: center;
+  gap: 6px;
+}
+
+.big-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.face-expr-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+}
+
+.face-details, .attention-details, .body-details {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
-.chip-label {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255,255,255,0.25);
-  white-space: nowrap;
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.chip-val {
+.detail-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+
+.detail-val {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+}
+
+.detail-icon {
+  font-size: 12px;
+}
+
+/* -- Attention section -- */
+.attention-section {
+  align-items: center;
+}
+
+.focus-ring-wrap {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-ring {
+  width: 60px;
+  height: 60px;
+  transform: rotate(-90deg);
+}
+
+.focus-ring-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 4;
+}
+
+.focus-ring-fill {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease-out, stroke 0.3s;
+}
+
+.focus-ring-fill.medium {
+  stroke: var(--amber);
+}
+
+.focus-ring-fill.low {
+  stroke: var(--red);
+}
+
+.focus-pct {
+  position: absolute;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+/* -- Hands section -- */
+.hands-section {
+  gap: 4px;
+}
+
+.gesture-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gesture-label {
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255,255,255,0.75);
-  white-space: nowrap;
+  color: rgba(255,255,255,0.7);
+}
+
+.hands-indicators {
+  display: flex;
+  gap: 10px;
+}
+
+.hand-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.3;
+}
+
+.hand-indicator.active {
+  opacity: 1;
+}
+
+.hand-side {
+  font-size: 12px;
+}
+
+.finger-dots {
+  display: flex;
+  gap: 2px;
+}
+
+.fdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  transition: background 0.15s;
+}
+
+.fdot.on {
+  background: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 4px rgba(168, 85, 247, 0.4);
+}
+
+.action-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  min-height: 14px;
+}
+
+.action-label.active {
+  color: var(--amber);
+  font-weight: 500;
+}
+
+/* -- Body section -- */
+.body-section {
+  gap: 4px;
+}
+
+.body-posture {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+}
+
+.ratio-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.ratio-bar {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+  width: 0%;
+}
+
+/* -- Synthesis strip -- */
+.synth-strip {
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 4px 16px;
+  border-radius: 10px;
+}
+
+.synth-text {
+  font-size: 12px;
+  color: rgba(255,255,255,0.65);
+  text-align: center;
 }
 
 /* ---- Timeline float — top right ---- */
@@ -411,23 +573,30 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 600px) {
-  .bottom-row {
-    flex-wrap: wrap;
-    justify-content: center;
+@media (max-width: 700px) {
+  .bottom-panel {
+    flex-direction: column;
+    padding: 8px 0;
   }
-  .synth-block {
-    border-right: none;
-    padding-right: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    padding-bottom: 8px;
-    width: 100%;
-    justify-content: center;
+  .panel-divider {
+    width: auto;
+    height: 1px;
+    align-self: stretch;
   }
-  .sense-chips {
+  .panel-section {
+    padding: 8px 14px;
+  }
+  .focus-ring-wrap {
+    width: 48px;
+    height: 48px;
+  }
+  .focus-ring {
+    width: 48px;
+    height: 48px;
+  }
+  .attention-section {
+    flex-direction: row;
     gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
   }
 }
 

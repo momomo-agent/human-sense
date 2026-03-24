@@ -314,6 +314,213 @@ class SynthesisEngine {
   }
 }
 
+// ---- Custom gesture detector ----
+class CustomGestureDetector {
+  constructor() {
+    this.pinchThreshold = 0.3 // normalized by palm width
+  }
+
+  // Check if a finger is extended (tip above PIP joint = lower y)
+  isFingerExtended(landmarks, tipIdx, pipIdx) {
+    return landmarks[tipIdx].y < landmarks[pipIdx].y
+  }
+
+  // Thumb extension uses x-axis (extends outward from palm)
+  isThumbExtended(landmarks) {
+    const tip = landmarks[4]
+    const ip = landmarks[3]
+    const mcp = landmarks[2]
+    // Thumb is extended if tip is farther from palm center than IP
+    return Math.abs(tip.x - mcp.x) > Math.abs(ip.x - mcp.x)
+  }
+
+  // Normalized distance between two landmarks (divided by palm width)
+  pinchDistance(landmarks, idxA, idxB) {
+    const a = landmarks[idxA]
+    const b = landmarks[idxB]
+    const palmWidth = Math.hypot(
+      landmarks[5].x - landmarks[17].x,
+      landmarks[5].y - landmarks[17].y
+    )
+    const dist = Math.hypot(a.x - b.x, a.y - b.y)
+    return dist / (palmWidth + 0.001)
+  }
+
+  detect(landmarks) {
+    if (!landmarks || landmarks.length < 21) return null
+
+    const thumb = this.isThumbExtended(landmarks)
+    const index = this.isFingerExtended(landmarks, 8, 6)
+    const middle = this.isFingerExtended(landmarks, 12, 10)
+    const ring = this.isFingerExtended(landmarks, 16, 14)
+    const pinky = this.isFingerExtended(landmarks, 20, 18)
+
+    const thumbIndexDist = this.pinchDistance(landmarks, 4, 8)
+    const isPinching = thumbIndexDist < this.pinchThreshold
+
+    // OK — thumb+index touching, other 3 extended
+    if (isPinching && middle && ring && pinky) {
+      return { name: 'OK', confidence: 0.8, emoji: '👌' }
+    }
+
+    // Pinch — thumb+index touching, other 3 curled
+    if (isPinching && !middle && !ring && !pinky) {
+      return { name: 'Pinch', confidence: 0.8, emoji: '🤏' }
+    }
+
+    // Rock — index+pinky extended, middle+ring curled
+    if (index && pinky && !middle && !ring) {
+      return { name: 'Rock', confidence: 0.75, emoji: '🤟' }
+    }
+
+    // One — only index extended
+    if (index && !middle && !ring && !pinky && !thumb) {
+      return { name: 'One', confidence: 0.7, emoji: '☝️' }
+    }
+
+    // Peace/Two — index+middle extended, others curled
+    if (index && middle && !ring && !pinky) {
+      return { name: 'Peace', confidence: 0.75, emoji: '✌️' }
+    }
+
+    return null
+  }
+}
+
+// ---- Action detector (temporal) ----
+class ActionDetector {
+  constructor() {
+    this.bufferSize = 30
+    this.handHistory = {} // keyed by hand index
+    this.cooldowns = {}   // keyed by action name
+    this.cooldownMs = 500
+  }
+
+  // Add a frame of hand data
+  addFrame(handIdx, wrist, indexTip, palmCenter, timestamp) {
+    if (!this.handHistory[handIdx]) {
+      this.handHistory[handIdx] = []
+    }
+    const buf = this.handHistory[handIdx]
+    buf.push({ wrist, indexTip, palmCenter, timestamp })
+    if (buf.length > this.bufferSize) buf.shift()
+  }
+
+  // Check cooldown
+  canFire(action) {
+    const last = this.cooldowns[action] || 0
+    return (performance.now() - last) > this.cooldownMs
+  }
+
+  fire(action) {
+    this.cooldowns[action] = performance.now()
+  }
+
+  detect(handIdx) {
+    const buf = this.handHistory[handIdx]
+    if (!buf || buf.length < 5) return []
+
+    const actions = []
+    const now = buf[buf.length - 1].timestamp
+
+    // Wave — wrist x reversals >= 2 in last 1s
+    if (this.canFire('Wave')) {
+      const recent = buf.filter(f => (now - f.timestamp) < 1000)
+      if (recent.length >= 5) {
+        let reversals = 0
+        let lastDir = 0
+        for (let i = 1; i < recent.length; i++) {
+          const dx = recent[i].wrist.x - recent[i - 1].wrist.x
+          if (Math.abs(dx) > 0.005) {
+            const dir = dx > 0 ? 1 : -1
+            if (lastDir !== 0 && dir !== lastDir) reversals++
+            lastDir = dir
+          }
+        }
+        const totalDx = recent.reduce((sum, f, i) => {
+          if (i === 0) return 0
+          return sum + Math.abs(f.wrist.x - recent[i - 1].wrist.x)
+        }, 0)
+        if (reversals >= 2 && totalDx > 0.08) {
+          actions.push({ name: 'Wave', emoji: '👋', confidence: 0.7 })
+          this.fire('Wave')
+        }
+      }
+    }
+
+    // Tap — index z drops then rebounds
+    if (this.canFire('Tap')) {
+      const last5 = buf.slice(-5)
+      if (last5.length >= 5) {
+        const zVals = last5.map(f => f.indexTip.z)
+        const minZ = Math.min(...zVals)
+        const startZ = zVals[0]
+        const endZ = zVals[zVals.length - 1]
+        if (startZ - minZ > 0.03 && endZ - minZ > 0.02) {
+          actions.push({ name: 'Tap', emoji: '☝️', confidence: 0.65 })
+          this.fire('Tap')
+        }
+      }
+    }
+
+    // Push Down — palm y increases rapidly
+    if (this.canFire('Push Down')) {
+      const recent = buf.slice(-8)
+      if (recent.length >= 6) {
+        const dy = recent[recent.length - 1].palmCenter.y - recent[0].palmCenter.y
+        const dt = recent[recent.length - 1].timestamp - recent[0].timestamp
+        if (dy > 0.08 && dt < 500 && dt > 0) {
+          actions.push({ name: 'Push Down', emoji: '🫳', confidence: 0.7 })
+          this.fire('Push Down')
+        }
+      }
+    }
+
+    // Lift Up — palm y decreases rapidly
+    if (this.canFire('Lift Up')) {
+      const recent = buf.slice(-8)
+      if (recent.length >= 6) {
+        const dy = recent[recent.length - 1].palmCenter.y - recent[0].palmCenter.y
+        const dt = recent[recent.length - 1].timestamp - recent[0].timestamp
+        if (dy < -0.08 && dt < 500 && dt > 0) {
+          actions.push({ name: 'Lift Up', emoji: '🫴', confidence: 0.7 })
+          this.fire('Lift Up')
+        }
+      }
+    }
+
+    // Circle — index tip angle accumulates >= 360°
+    if (this.canFire('Circle')) {
+      const recent = buf.filter(f => (now - f.timestamp) < 1500)
+      if (recent.length >= 10) {
+        // Compute center of trajectory
+        const cx = recent.reduce((s, f) => s + f.indexTip.x, 0) / recent.length
+        const cy = recent.reduce((s, f) => s + f.indexTip.y, 0) / recent.length
+        let totalAngle = 0
+        for (let i = 1; i < recent.length; i++) {
+          const a1 = Math.atan2(recent[i - 1].indexTip.y - cy, recent[i - 1].indexTip.x - cx)
+          const a2 = Math.atan2(recent[i].indexTip.y - cy, recent[i].indexTip.x - cx)
+          let da = a2 - a1
+          // Normalize to [-PI, PI]
+          if (da > Math.PI) da -= 2 * Math.PI
+          if (da < -Math.PI) da += 2 * Math.PI
+          totalAngle += da
+        }
+        if (Math.abs(totalAngle) >= 2 * Math.PI) {
+          actions.push({ name: 'Circle', emoji: '🔄', confidence: 0.65 })
+          this.fire('Circle')
+        }
+      }
+    }
+
+    return actions
+  }
+
+  reset() {
+    this.handHistory = {}
+  }
+}
+
 // ---- Main engine ----
 export class SenseEngine {
   constructor(video, overlayCanvas) {
@@ -337,11 +544,16 @@ export class SenseEngine {
     this.focusScorer = new FocusScorer()
     this.synthesis = new SynthesisEngine()
 
+    this.customGesture = new CustomGestureDetector()
+    this.actionDetector = new ActionDetector()
+
     this.distanceEMA = new EMA(0.15)
     this.yawEMA = new EMA(0.2)
     this.pitchEMA = new EMA(0.2)
 
     this.lastResult = null
+    this.lastCustomGestures = []
+    this.lastActions = []
     this.frameCount = 0
     this.lastHandResult = null
     this.lastHandLmResult = null
@@ -568,6 +780,45 @@ export class SenseEngine {
       try {
         this.lastFaceDetResult = this.faceDetector.detectForVideo(this.video, now)
       } catch (e) { /* skip */ }
+    }
+
+    // ---- Custom gesture + action detection ----
+    this.lastCustomGestures = []
+    this.lastActions = []
+    const handSource = this.lastHandResult?.landmarks ? this.lastHandResult : this.lastHandLmResult
+    if (handSource?.landmarks) {
+      for (let h = 0; h < handSource.landmarks.length; h++) {
+        const lm = handSource.landmarks[h]
+        // Custom gesture: only if MediaPipe returned None or low confidence
+        const mpGesture = this.lastHandResult?.gestures?.[h]?.[0]
+        const mpIsNone = !mpGesture || mpGesture.categoryName === 'None' || (mpGesture.score || 0) < 0.5
+        if (mpIsNone) {
+          const custom = this.customGesture.detect(lm)
+          if (custom) {
+            this.lastCustomGestures.push({ hand: h, ...custom })
+          }
+        }
+
+        // Action detection: feed wrist + index tip + palm center
+        const wrist = lm[0]
+        const indexTip = lm[8]
+        const palmCenter = {
+          x: (lm[0].x + lm[5].x + lm[17].x) / 3,
+          y: (lm[0].y + lm[5].y + lm[17].y) / 3,
+          z: (lm[0].z + lm[5].z + lm[17].z) / 3,
+        }
+        this.actionDetector.addFrame(h, wrist, indexTip, palmCenter, now)
+        const detected = this.actionDetector.detect(h)
+        for (const action of detected) {
+          this.lastActions.push({ hand: h, ...action })
+          // Add to synthesis timeline
+          this.synthesis.events.push({
+            time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+            text: `${action.emoji} ${action.name}`
+          })
+          if (this.synthesis.events.length > 50) this.synthesis.events.shift()
+        }
+      }
     }
 
     this.drawOverlay(faceResults, this.lastHandResult, this.lastPoseResult, this.lastObjectResult)
@@ -900,6 +1151,6 @@ export class SenseEngine {
     const emo = emotion || { expression: '未知', posture: '未知', tilt: '-' }
     const synth = this.synthesis.synthesize(presence, attn, emo)
 
-    return { presence, attention: attn, emotion: emo, synthesis: synth, pose, sense: senseFrame || null }
+    return { presence, attention: attn, emotion: emo, synthesis: synth, pose, sense: senseFrame || null, customGestures: this.lastCustomGestures, actions: this.lastActions }
   }
 }
