@@ -15,109 +15,75 @@
   </div>
 
   <div class="app" id="app" style="display:none">
-    <!-- Left: Camera + Overlay -->
-    <div class="camera-section">
-      <div class="camera-container">
-        <video id="camera" autoplay playsinline></video>
-        <canvas id="overlay"></canvas>
-        
-        <!-- Gaze crosshair overlay on camera -->
-        <div class="gaze-indicator" id="gaze-indicator">
-          <div class="gaze-dot"></div>
-        </div>
+    <!-- Fullscreen camera background -->
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
 
-        <!-- Face status badge -->
-        <div class="face-badge" id="face-badge">
-          <span class="face-count" id="face-count">0</span>
-          <span class="face-label">人</span>
+    <!-- HUD layer -->
+    <div class="hud">
+      <!-- Top bar -->
+      <div class="hud-top">
+        <div class="hud-badge">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="hud-title">Human Sense</span>
         </div>
-
-        <!-- Distance badge -->
-        <div class="distance-badge" id="distance-badge">—</div>
+        <div class="hud-badges-right">
+          <div class="hud-pill" id="face-pill">
+            <span id="face-count">0</span> 人
+          </div>
+          <div class="hud-pill" id="distance-pill">—</div>
+        </div>
       </div>
 
-      <!-- Attention bar -->
-      <div class="attention-bar-wrap">
-        <div class="attention-bar" id="attention-bar"></div>
-        <div class="attention-label">
-          <span>专注度</span>
-          <span id="attention-pct">—</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: Sense panels -->
-    <div class="sense-section">
-      <div class="sense-header">
-        <h1>Human Sense</h1>
-        <div class="status-dot" id="status-dot"></div>
+      <!-- Gaze crosshair -->
+      <div class="gaze-ring" id="gaze-ring">
+        <div class="gaze-dot"></div>
       </div>
 
-      <!-- Synthesis — the big headline -->
-      <div class="synthesis-card" id="synthesis-card">
-        <div class="synthesis-text" id="synthesis-text">初始化中...</div>
-      </div>
+      <!-- Bottom HUD -->
+      <div class="hud-bottom">
+        <!-- Synthesis -->
+        <div class="synthesis" id="synthesis-text">等待感知...</div>
 
-      <!-- Sense grid -->
-      <div class="sense-grid">
-        <!-- Gaze -->
-        <div class="sense-card">
-          <div class="sense-icon">👀</div>
-          <div class="sense-data">
-            <div class="sense-label">注视</div>
-            <div class="sense-value" id="s-gaze">—</div>
+        <!-- Attention bar -->
+        <div class="attention-wrap">
+          <div class="attention-track">
+            <div class="attention-fill" id="attention-bar"></div>
           </div>
+          <span class="attention-label" id="attention-pct">—</span>
         </div>
 
-        <!-- Expression -->
-        <div class="sense-card">
-          <div class="sense-icon" id="s-expr-icon">😐</div>
-          <div class="sense-data">
-            <div class="sense-label">表情</div>
-            <div class="sense-value" id="s-expression">—</div>
+        <!-- Sense pills row -->
+        <div class="sense-row">
+          <div class="sense-pill">
+            <span class="sp-icon">👀</span>
+            <span class="sp-val" id="s-gaze">—</span>
           </div>
-        </div>
-
-        <!-- Posture -->
-        <div class="sense-card">
-          <div class="sense-icon">🧍</div>
-          <div class="sense-data">
-            <div class="sense-label">姿态</div>
-            <div class="sense-value" id="s-posture">—</div>
+          <div class="sense-pill">
+            <span class="sp-icon" id="s-expr-icon">😐</span>
+            <span class="sp-val" id="s-expression">—</span>
           </div>
-        </div>
-
-        <!-- Blink -->
-        <div class="sense-card">
-          <div class="sense-icon">💧</div>
-          <div class="sense-data">
-            <div class="sense-label">眨眼</div>
-            <div class="sense-value" id="s-blink">—</div>
+          <div class="sense-pill">
+            <span class="sp-icon">🧍</span>
+            <span class="sp-val" id="s-posture">—</span>
           </div>
-        </div>
-
-        <!-- Facing -->
-        <div class="sense-card">
-          <div class="sense-icon" id="s-facing-icon">🎯</div>
-          <div class="sense-data">
-            <div class="sense-label">面对</div>
-            <div class="sense-value" id="s-facing">—</div>
+          <div class="sense-pill">
+            <span class="sp-icon">💧</span>
+            <span class="sp-val" id="s-blink">—</span>
           </div>
-        </div>
-
-        <!-- Tilt -->
-        <div class="sense-card">
-          <div class="sense-icon">↕️</div>
-          <div class="sense-data">
-            <div class="sense-label">倾斜</div>
-            <div class="sense-value" id="s-tilt">—</div>
+          <div class="sense-pill">
+            <span class="sp-icon" id="s-facing-icon">🎯</span>
+            <span class="sp-val" id="s-facing">—</span>
+          </div>
+          <div class="sense-pill">
+            <span class="sp-icon">↕️</span>
+            <span class="sp-val" id="s-tilt">—</span>
           </div>
         </div>
       </div>
 
-      <!-- Timeline -->
-      <div class="timeline-section">
-        <div class="timeline-title">感知日志</div>
+      <!-- Timeline (collapsible, bottom-right) -->
+      <div class="timeline-float" id="timeline-float">
         <div class="timeline-entries" id="timeline-entries"></div>
       </div>
     </div>

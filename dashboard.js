@@ -8,7 +8,7 @@ export class Dashboard {
       faceCount: document.getElementById('face-count'),
       faceBadge: document.getElementById('face-badge'),
       distanceBadge: document.getElementById('distance-badge'),
-      gazeIndicator: document.getElementById('gaze-indicator'),
+      gazeIndicator: document.getElementById('gaze-ring'),
       attentionBar: document.getElementById('attention-bar'),
       attentionPct: document.getElementById('attention-pct'),
       statusDot: document.getElementById('status-dot'),
@@ -25,7 +25,6 @@ export class Dashboard {
 
       // Synthesis
       synthesisText: document.getElementById('synthesis-text'),
-      synthesisCard: document.getElementById('synthesis-card'),
 
       // Timeline
       timeline: document.getElementById('timeline-entries'),
@@ -61,11 +60,11 @@ export class Dashboard {
 
     // Gaze indicator position on camera
     if (attention.gaze && attention.gaze.x !== undefined) {
-      const gx = 50 - attention.gaze.x * 40  // invert X for mirrored camera
+      const gx = 50 - attention.gaze.x * 40
       const gy = 50 + attention.gaze.y * 40
       this.els.gazeIndicator.style.left = `${Math.max(10, Math.min(90, gx))}%`
       this.els.gazeIndicator.style.top = `${Math.max(10, Math.min(90, gy))}%`
-      this.els.gazeIndicator.style.opacity = presence.count > 0 ? '1' : '0'
+      this.els.gazeIndicator.classList.toggle('visible', presence.count > 0)
     }
 
     // Attention bar
