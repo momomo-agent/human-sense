@@ -168,22 +168,44 @@ class GazeEstimator {
 class FocusScorer {
   constructor() {
     this.facingHistory = []
+    this.gazeHistory = []     // track gaze stability
     this.bufferSize = 90
+    this.lastGazeX = 0
+    this.lastGazeY = 0
+    this.gazeJitter = 0       // how much gaze jumps around
   }
 
-  update(facing, looking, blinkRate) {
+  update(facing, gaze, blinkRate) {
     this.facingHistory.push(facing ? 1 : 0)
     if (this.facingHistory.length > this.bufferSize) this.facingHistory.shift()
 
-    const facingRatio = this.facingHistory.reduce((a, b) => a + b, 0) / this.facingHistory.length
-    let blinkScore = 1
-    if (blinkRate < 8) blinkScore = 0.7
-    if (blinkRate > 30) blinkScore = 0.6
+    // Gaze stability — rapid eye movement = less focused
+    if (gaze && gaze.x !== undefined) {
+      const dx = Math.abs(gaze.x - this.lastGazeX)
+      const dy = Math.abs(gaze.y - this.lastGazeY)
+      const jitter = dx + dy
+      this.gazeJitter = this.gazeJitter * 0.95 + jitter * 0.05  // EMA
+      this.lastGazeX = gaze.x
+      this.lastGazeY = gaze.y
+    }
 
-    const score = Math.round(facingRatio * 100 * blinkScore)
+    const facingRatio = this.facingHistory.reduce((a, b) => a + b, 0) / this.facingHistory.length
+
+    // Blink rate factor: 12-20/min normal. Outside = less focused
+    let blinkFactor = 1
+    if (blinkRate < 5) blinkFactor = 0.75   // staring, zoning out
+    if (blinkRate > 28) blinkFactor = 0.65  // fatigue
+
+    // Gaze stability factor: stable gaze = focused
+    let gazeFactor = 1
+    if (this.gazeJitter > 0.02) gazeFactor = 0.8   // some wandering
+    if (this.gazeJitter > 0.05) gazeFactor = 0.6   // very jumpy
+
+    const score = Math.round(facingRatio * 100 * blinkFactor * gazeFactor)
+
     let level = '高'
-    if (score < 40) level = '低'
-    else if (score < 70) level = '中'
+    if (score < 35) level = '低'
+    else if (score < 65) level = '中'
 
     return { score, level }
   }
@@ -204,27 +226,35 @@ class SynthesisEngine {
       text = '无人在屏幕前'
     } else if (presence.count > 1) {
       text = `${presence.count} 人在屏幕前`
-      if (presence.facing) text += '，主用户面对屏幕'
     } else {
       const parts = []
       if (!presence.facing) {
-        parts.push('没有面对屏幕')
-      } else if (attention.focus.level === '高') {
-        parts.push('专注地看着屏幕')
-        if (attention.gaze.region !== '中央') parts.push(`注视${attention.gaze.region}侧`)
-      } else if (attention.focus.level === '中') {
-        parts.push('在看屏幕，但注意力一般')
+        parts.push('没看屏幕')
       } else {
-        parts.push('注意力涣散')
+        // Don't just say "专注" — describe what they're doing
+        if (attention.focus.level === '高') {
+          if (attention.gaze.region !== '中央' && attention.gaze.region !== '未知') {
+            parts.push(`看着屏幕${attention.gaze.region}`)
+          } else {
+            parts.push('注视屏幕中')
+          }
+        } else if (attention.focus.level === '中') {
+          parts.push('在看，有点走神')
+        } else {
+          parts.push('心不在焉')
+        }
       }
 
-      if (emotion.expression !== '😐 平静' && emotion.expression !== '未知') {
+      // Only add expression if it's NOT 平静 (that's the default, not interesting)
+      if (emotion.expression && !emotion.expression.includes('平静')) {
         parts.push(emotion.expression)
       }
-      if (emotion.posture === '前倾') parts.push('身体前倾（感兴趣）')
-      else if (emotion.posture === '后仰') parts.push('身体后仰（放松/无聊）')
 
-      text = parts.join('，')
+      if (emotion.posture === '前倾') parts.push('前倾')
+      else if (emotion.posture === '后仰') parts.push('后仰')
+      else if (emotion.posture === '侧头') parts.push('侧头')
+
+      text = parts.join('，') || '面对屏幕'
     }
 
     const stateKey = `${presence.count}-${presence.facing}-${attention.focus.level}`
@@ -369,7 +399,7 @@ export class SenseEngine {
     const blinkRate = this.blinkDetector.update(avgEAR)
 
     // Focus
-    const focus = this.focusScorer.update(pose.facing, gaze.looking, blinkRate)
+    const focus = this.focusScorer.update(pose.facing, gaze, blinkRate)
 
     // Expression — use blendshapes if available, otherwise landmark-based
     let expression = '😐 平静'
@@ -388,7 +418,6 @@ export class SenseEngine {
   }
 
   expressionFromBlendshapes(blendshapes) {
-    // blendshapes.categories is array of {categoryName, score}
     const bs = {}
     for (const cat of blendshapes.categories) {
       bs[cat.categoryName] = cat.score
@@ -404,18 +433,31 @@ export class SenseEngine {
     const eyeSquintR = bs['eyeSquintRight'] || 0
     const mouthFrownL = bs['mouthFrownLeft'] || 0
     const mouthFrownR = bs['mouthFrownRight'] || 0
+    const mouthPucker = bs['mouthPucker'] || 0
+    const cheekPuff = bs['cheekPuff'] || 0
+    const eyeWideL = bs['eyeWideLeft'] || 0
+    const eyeWideR = bs['eyeWideRight'] || 0
 
     const smile = (mouthSmileL + mouthSmileR) / 2
     const frown = (mouthFrownL + mouthFrownR) / 2
     const browDown = (browDownL + browDownR) / 2
+    const eyeWide = (eyeWideL + eyeWideR) / 2
 
-    if (jawOpen > 0.4) return '😮 惊讶/说话'
-    if (smile > 0.4) return '😊 微笑'
-    if (smile > 0.2) return '🙂 轻松'
-    if (browInnerUp > 0.4 && browDown < 0.2) return '😯 惊讶'
-    if (browDown > 0.3) return '🤨 皱眉'
-    if (frown > 0.3) return '😕 不悦'
-    if ((eyeSquintL + eyeSquintR) / 2 > 0.5) return '😑 眯眼'
+    // Log top blendshapes for tuning (uncomment to debug)
+    // const sorted = Object.entries(bs).filter(([,v]) => v > 0.1).sort((a,b) => b[1]-a[1]).slice(0,5)
+    // if (this.frameCount % 30 === 0) console.log('BS:', sorted.map(([k,v]) => `${k}:${v.toFixed(2)}`).join(' '))
+
+    // Thresholds tuned: jawOpen 0.4→0.6 (was triggering on slightly open mouth)
+    // Need BOTH jawOpen AND eyeWide for true surprise vs just talking
+    if (jawOpen > 0.6 && eyeWide > 0.3) return '😮 惊讶'
+    if (jawOpen > 0.5) return '🗣️ 说话'
+    if (smile > 0.5) return '😊 微笑'
+    if (smile > 0.25 && jawOpen < 0.3) return '🙂 轻松'
+    if (browInnerUp > 0.5 && browDown < 0.2) return '🤔 困惑'
+    if (browDown > 0.4) return '🤨 皱眉'
+    if (frown > 0.35) return '😕 不悦'
+    if ((eyeSquintL + eyeSquintR) / 2 > 0.6) return '😑 眯眼'
+    if (mouthPucker > 0.5) return '😗 嘟嘴'
     return '😐 平静'
   }
 
