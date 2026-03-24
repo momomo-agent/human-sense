@@ -127,42 +127,79 @@ class HeadPoseEstimator {
 
 // ---- Gaze estimator ----
 class GazeEstimator {
+  constructor() {
+    this.gazeXEMA = new EMA(0.25)
+    this.gazeYEMA = new EMA(0.25)
+    // Calibration: maps iris ratio to screen position
+    // iris ratioX ~0.35 = looking right, ~0.65 = looking left (mirrored)
+    // We map to -1 (left) to +1 (right) screen space
+    this.scaleX = 3.5   // sensitivity
+    this.scaleY = 4.0
+  }
+
   estimate(landmarks) {
-    if (!landmarks || landmarks.length < 468) return { region: '未知', looking: false }
+    if (!landmarks || landmarks.length < 478) return { region: '未知', looking: false, x: 0, y: 0, screenX: 0.5, screenY: 0.5 }
 
-    const hasIris = landmarks.length >= 478
-    let gazeX = 0, gazeY = 0
+    // Iris position within eye socket
+    const le33 = landmarks[33], le133 = landmarks[133], liris = landmarks[468]
+    const leWidth = Math.abs(le133.x - le33.x)
+    const lRatioX = (liris.x - le33.x) / (leWidth + 0.001)
 
-    if (hasIris) {
-      const le33 = landmarks[33], le133 = landmarks[133], liris = landmarks[468]
-      const leWidth = Math.abs(le133.x - le33.x)
-      const lGazeX = (liris.x - le33.x) / (leWidth + 0.001)
+    const re362 = landmarks[362], re263 = landmarks[263], riris = landmarks[473]
+    const reWidth = Math.abs(re263.x - re362.x)
+    const rRatioX = (riris.x - re362.x) / (reWidth + 0.001)
 
-      const re362 = landmarks[362], re263 = landmarks[263], riris = landmarks[473]
-      const reWidth = Math.abs(re263.x - re362.x)
-      const rGazeX = (riris.x - re362.x) / (reWidth + 0.001)
+    // Average iris horizontal position (0.5 = center)
+    const irisX = (lRatioX + rRatioX) / 2
 
-      gazeX = (lGazeX + rGazeX) / 2 - 0.5
+    // Vertical: iris position within eye opening
+    const le159 = landmarks[159], le145 = landmarks[145]
+    const leH = Math.abs(le145.y - le159.y)
+    const lRatioY = (liris.y - le159.y) / (leH + 0.001)
 
-      const le159 = landmarks[159], le145 = landmarks[145]
-      const leH = Math.abs(le145.y - le159.y)
-      const lGazeY = (liris.y - le159.y) / (leH + 0.001) - 0.5
+    const re386 = landmarks[386], re374 = landmarks[374]
+    const reH = Math.abs(re374.y - re386.y)
+    const rRatioY = (riris.y - re386.y) / (reH + 0.001)
 
-      const re386 = landmarks[386], re374 = landmarks[374]
-      const reH = Math.abs(re374.y - re386.y)
-      const rGazeY = (riris.y - re386.y) / (reH + 0.001) - 0.5
+    const irisY = (lRatioY + rRatioY) / 2
 
-      gazeY = (lGazeY + rGazeY) / 2
-    }
+    // Head pose contribution (yaw/pitch affect perceived gaze direction)
+    const nose = landmarks[1]
+    const leftFace = landmarks[234]
+    const rightFace = landmarks[454]
+    const forehead = landmarks[10]
+    const chin = landmarks[152]
 
+    const faceCenter = (leftFace.x + rightFace.x) / 2
+    const faceWidth = Math.abs(rightFace.x - leftFace.x)
+    const headYaw = (nose.x - faceCenter) / (faceWidth + 0.001)
+
+    const faceMidY = (forehead.y + chin.y) / 2
+    const faceHeight = Math.abs(chin.y - forehead.y)
+    const headPitch = (nose.y - faceMidY) / (faceHeight + 0.001)
+
+    // Combine iris + head pose for gaze direction
+    // iris offset from center (0.5) weighted more, head adds broad direction
+    const rawGazeX = (irisX - 0.5) * this.scaleX + headYaw * 1.2
+    const rawGazeY = (irisY - 0.5) * this.scaleY + headPitch * 1.0
+
+    // Smooth
+    const gazeX = this.gazeXEMA.update(rawGazeX)
+    const gazeY = this.gazeYEMA.update(rawGazeY)
+
+    // Map to screen coordinates (0-1 range, 0.5 = center)
+    const screenX = Math.max(0, Math.min(1, 0.5 - gazeX))
+    const screenY = Math.max(0, Math.min(1, 0.5 + gazeY))
+
+    // Region label
     let region = '中央'
-    if (gazeX < -0.15) region = '左'
-    else if (gazeX > 0.15) region = '右'
-    if (gazeY < -0.15) region = '上' + (region !== '中央' ? region : '')
-    else if (gazeY > 0.15) region = '下' + (region !== '中央' ? region : '')
+    if (gazeX < -0.15) region = '右'
+    else if (gazeX > 0.15) region = '左'
+    if (gazeY < -0.12) region = '上' + (region !== '中央' ? region : '')
+    else if (gazeY > 0.12) region = '下' + (region !== '中央' ? region : '')
 
-    const looking = Math.abs(gazeX) < 0.25 && Math.abs(gazeY) < 0.25
-    return { region, looking, x: gazeX, y: gazeY }
+    const looking = Math.abs(gazeX) < 0.25 && Math.abs(gazeY) < 0.2
+    return { region, looking, x: gazeX, y: gazeY, screenX, screenY }
   }
 }
 

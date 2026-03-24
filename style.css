@@ -241,7 +241,7 @@ body {
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 15;
-  transition: top 0.12s ease-out, left 0.12s ease-out;
+  transition: top 0.08s ease-out, left 0.08s ease-out;
   opacity: 0;
 }
 
@@ -250,14 +250,15 @@ body {
 }
 
 .gaze-dot {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 2px solid rgba(59, 130, 246, 0.7);
-  background: rgba(59, 130, 246, 0.15);
+  border: 2px solid rgba(59, 130, 246, 0.8);
+  background: rgba(59, 130, 246, 0.2);
   box-shadow:
-    0 0 20px rgba(59, 130, 246, 0.2),
-    inset 0 0 8px rgba(59, 130, 246, 0.1);
+    0 0 16px rgba(59, 130, 246, 0.35),
+    0 0 40px rgba(59, 130, 246, 0.1),
+    inset 0 0 8px rgba(59, 130, 246, 0.15);
   position: relative;
 }
 
@@ -267,10 +268,11 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.9);
+  background: rgba(59, 130, 246, 0.95);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
 }
 
 /* ---- Bottom HUD ---- */

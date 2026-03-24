@@ -74,13 +74,13 @@ export class Dashboard {
       this.setText('distanceBadge', '—')
     }
 
-    // Gaze indicator
+    // Gaze indicator — position using screenX/screenY
     const gi = this.els.gazeIndicator
-    if (gi && attention.gaze && attention.gaze.x !== undefined) {
-      const gx = 50 - attention.gaze.x * 40
-      const gy = 50 + attention.gaze.y * 40
-      gi.style.left = `${Math.max(10, Math.min(90, gx))}%`
-      gi.style.top = `${Math.max(10, Math.min(90, gy))}%`
+    if (gi && attention.gaze) {
+      if (attention.gaze.screenX !== undefined) {
+        gi.style.left = `${attention.gaze.screenX * 100}%`
+        gi.style.top = `${attention.gaze.screenY * 100}%`
+      }
       gi.classList.toggle('visible', presence.count > 0)
     }
 
