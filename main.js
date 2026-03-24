@@ -88,10 +88,22 @@ async function init() {
     // Loop
     function loop() {
       const result = currentEngine.detect()
-      if (result) dashboard.update(result)
+      if (result) {
+        dashboard.update(result)
+        // Press 's' to dump sense frame to console
+        if (window.__dumpSense && result.sense) {
+          console.log('SenseFrame:', JSON.stringify(result.sense, null, 2))
+          window.__dumpSense = false
+        }
+      }
       requestAnimationFrame(loop)
     }
     requestAnimationFrame(loop)
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 's') window.__dumpSense = true
+    })
 
     // HUD camera switch — runtime
     hudSelect.addEventListener('change', async () => {

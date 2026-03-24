@@ -1,3 +1,5 @@
+import { extractFrame, IDX } from './sense-data.js'
+
 /**
  * SenseEngine — face landmark detection + feature extraction
  * 
@@ -409,10 +411,14 @@ export class SenseEngine {
       expression = this.expressionClassifier.classify(landmarks).expression
     }
 
+    // ---- Structured sense data (core output) ----
+    const senseFrame = extractFrame(results)
+
     this.lastResult = this.buildResult(faceCount, pose.facing, distance,
       { gaze, blinkRate, focus },
       { expression, posture: pose.posture, tilt: pose.tilt },
-      pose
+      pose,
+      senseFrame
     )
     return this.lastResult
   }
@@ -578,7 +584,7 @@ export class SenseEngine {
     }
   }
 
-  buildResult(count, facing, distance, attention, emotion, pose) {
+  buildResult(count, facing, distance, attention, emotion, pose, senseFrame) {
     const presence = { count, distance: distance ? distance.toFixed(1) : '-', facing }
 
     const attn = attention || {
@@ -590,6 +596,6 @@ export class SenseEngine {
     const emo = emotion || { expression: '未知', posture: '未知', tilt: '-' }
     const synth = this.synthesis.synthesize(presence, attn, emo)
 
-    return { presence, attention: attn, emotion: emo, synthesis: synth, pose }
+    return { presence, attention: attn, emotion: emo, synthesis: synth, pose, sense: senseFrame || null }
   }
 }
