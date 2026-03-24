@@ -27,6 +27,13 @@ export class Dashboard {
       tilt: document.getElementById('s-tilt'),
       synthesisText: document.getElementById('synthesis-text'),
       timeline: document.getElementById('timeline-entries'),
+      // New: hands & pose
+      handCount: document.getElementById('s-hand-count'),
+      gesture: document.getElementById('s-gesture'),
+      fingers: document.getElementById('s-fingers'),
+      bodyPosture: document.getElementById('s-body-posture'),
+      shoulders: document.getElementById('s-shoulders'),
+      personRatio: document.getElementById('s-person-ratio'),
     }
   }
 
@@ -124,6 +131,44 @@ export class Dashboard {
           <span class="event">${e.text}</span>
         </div>`)
         .join('')
+    }
+
+    // ---- Hands ----
+    const sense = result.sense
+    if (sense) {
+      this.setText('handCount', sense.handCount > 0 ? `${sense.handCount} ✋` : '0')
+
+      if (sense.hands.length > 0) {
+        const gestures = sense.hands
+          .filter(h => h.gesture)
+          .map(h => `${h.side === 'Left' ? '🫲' : '🫱'} ${h.gesture}`)
+        this.setText('gesture', gestures.length > 0 ? gestures.join(' ') : '—')
+
+        const fingerStr = sense.hands.map(h => {
+          const f = h.fingers
+          return [f.thumb ? '👍' : '·', f.index ? '☝' : '·', f.middle ? '🖕' : '·', f.ring ? '·' : '·', f.pinky ? '🤙' : '·'].join('')
+        }).join(' | ')
+        this.setText('fingers', fingerStr)
+      } else {
+        this.setText('gesture', '—')
+        this.setText('fingers', '—')
+      }
+
+      // ---- Body ----
+      if (sense.body) {
+        this.setText('shoulders', sense.body.shoulderWidth ? `W:${sense.body.shoulderWidth}` : '—')
+        this.setText('bodyPosture', sense.body.torsoLength ? `T:${sense.body.torsoLength}` : '—')
+      } else {
+        this.setText('shoulders', '—')
+        this.setText('bodyPosture', '—')
+      }
+
+      // ---- Segmentation ----
+      if (sense.segmentation) {
+        this.setText('personRatio', `${(sense.segmentation.personRatio * 100).toFixed(0)}%`)
+      } else {
+        this.setText('personRatio', '—')
+      }
     }
   }
 }

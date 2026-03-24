@@ -285,6 +285,9 @@ export class SenseEngine {
     this.ctx = overlayCanvas.getContext('2d')
 
     this.faceLandmarker = null
+    this.gestureRecognizer = null
+    this.poseLandmarker = null
+    this.imageSegmenter = null
     this.detector = null  // Chrome FaceDetector fallback
 
     this.blinkDetector = new BlinkDetector()
@@ -300,6 +303,10 @@ export class SenseEngine {
 
     this.lastResult = null
     this.frameCount = 0
+    this.lastHandResult = null
+    this.lastPoseResult = null
+    this.lastSegResult = null
+    this._vision = null  // cached vision module
   }
 
   async init() {
@@ -307,31 +314,33 @@ export class SenseEngine {
     try {
       await this.initMediaPipe()
       console.log('MediaPipe FaceLandmarker ready (478 landmarks + iris)')
-      return
     } catch (e) {
-      console.warn('MediaPipe init failed:', e)
-    }
-
-    // Fallback: Chrome FaceDetector
-    if ('FaceDetector' in window) {
-      try {
-        this.detector = new window.FaceDetector({ maxDetectedFaces: 5, fastMode: true })
-        console.log('Fallback: Chrome FaceDetector API')
-        return
-      } catch (e) {
-        console.warn('FaceDetector failed:', e)
+      console.warn('MediaPipe FaceLandmarker init failed:', e)
+      // Fallback: Chrome FaceDetector
+      if ('FaceDetector' in window) {
+        try {
+          this.detector = new window.FaceDetector({ maxDetectedFaces: 5, fastMode: true })
+          console.log('Fallback: Chrome FaceDetector API')
+        } catch (e2) {
+          console.warn('FaceDetector failed:', e2)
+          throw new Error('No face detection available')
+        }
+      } else {
+        throw new Error('No face detection available')
       }
     }
 
-    throw new Error('No face detection available')
+    // Init additional recognizers in parallel (non-blocking)
+    this.initGesture().catch(e => console.warn('GestureRecognizer init failed:', e))
+    this.initPose().catch(e => console.warn('PoseLandmarker init failed:', e))
+    this.initSegmenter().catch(e => console.warn('ImageSegmenter init failed:', e))
   }
 
   async initMediaPipe() {
-    // Import the tasks-vision module
     const vision = await import('./mediapipe/vision_bundle.mjs')
+    this._vision = vision
     const { FaceLandmarker, FilesetResolver } = vision
 
-    // Use self-hosted WASM files
     const wasmFileset = await FilesetResolver.forVisionTasks('./mediapipe/')
 
     this.faceLandmarker = await FaceLandmarker.createFromOptions(wasmFileset, {
@@ -344,6 +353,55 @@ export class SenseEngine {
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: false
     })
+  }
+
+  async initGesture() {
+    if (!this._vision) return
+    const { GestureRecognizer, FilesetResolver } = this._vision
+    if (!GestureRecognizer) { console.warn('GestureRecognizer not in bundle'); return }
+    const wasmFileset = await FilesetResolver.forVisionTasks('./mediapipe/')
+    this.gestureRecognizer = await GestureRecognizer.createFromOptions(wasmFileset, {
+      baseOptions: {
+        modelAssetPath: './mediapipe/gesture_recognizer.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numHands: 2
+    })
+    console.log('GestureRecognizer ready (21 landmarks × 2 hands)')
+  }
+
+  async initPose() {
+    if (!this._vision) return
+    const { PoseLandmarker, FilesetResolver } = this._vision
+    if (!PoseLandmarker) { console.warn('PoseLandmarker not in bundle'); return }
+    const wasmFileset = await FilesetResolver.forVisionTasks('./mediapipe/')
+    this.poseLandmarker = await PoseLandmarker.createFromOptions(wasmFileset, {
+      baseOptions: {
+        modelAssetPath: './mediapipe/pose_landmarker_lite.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numPoses: 1
+    })
+    console.log('PoseLandmarker ready (33 body landmarks)')
+  }
+
+  async initSegmenter() {
+    if (!this._vision) return
+    const { ImageSegmenter, FilesetResolver } = this._vision
+    if (!ImageSegmenter) { console.warn('ImageSegmenter not in bundle'); return }
+    const wasmFileset = await FilesetResolver.forVisionTasks('./mediapipe/')
+    this.imageSegmenter = await ImageSegmenter.createFromOptions(wasmFileset, {
+      baseOptions: {
+        modelAssetPath: './mediapipe/selfie_segmenter.tflite',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      outputCategoryMask: true,
+      outputConfidenceMasks: false
+    })
+    console.log('ImageSegmenter ready (selfie segmentation)')
   }
 
   detect() {
@@ -361,24 +419,47 @@ export class SenseEngine {
     if (this.video.readyState < 2) return this.lastResult
 
     const now = performance.now()
-    let results
+
+    // Face landmarks (every frame)
+    let faceResults
     try {
-      results = this.faceLandmarker.detectForVideo(this.video, now)
+      faceResults = this.faceLandmarker.detectForVideo(this.video, now)
     } catch (e) {
       return this.lastResult
     }
 
-    const faceCount = results.faceLandmarks ? results.faceLandmarks.length : 0
+    const faceCount = faceResults.faceLandmarks ? faceResults.faceLandmarks.length : 0
 
-    this.drawOverlay(results)
+    // Gesture recognition (every frame if available)
+    if (this.gestureRecognizer) {
+      try {
+        this.lastHandResult = this.gestureRecognizer.recognizeForVideo(this.video, now)
+      } catch (e) { /* skip */ }
+    }
 
-    if (faceCount === 0) {
+    // Pose landmarks (every 2nd frame to save GPU)
+    if (this.poseLandmarker && this.frameCount % 2 === 0) {
+      try {
+        this.lastPoseResult = this.poseLandmarker.detectForVideo(this.video, now)
+      } catch (e) { /* skip */ }
+    }
+
+    // Segmentation (every 3rd frame — heaviest)
+    if (this.imageSegmenter && this.frameCount % 3 === 0) {
+      try {
+        this.lastSegResult = this.imageSegmenter.segmentForVideo(this.video, now)
+      } catch (e) { /* skip */ }
+    }
+
+    this.drawOverlay(faceResults, this.lastHandResult, this.lastPoseResult)
+
+    if (faceCount === 0 && !this.lastHandResult?.landmarks?.length) {
       this.lastResult = this.buildResult(0, false, 0, null, null, null)
       return this.lastResult
     }
 
     // Primary face
-    const landmarks = results.faceLandmarks[0]
+    const landmarks = faceResults.faceLandmarks[0]
 
     // Head pose
     const pose = this.headPose.estimate(landmarks)
@@ -405,14 +486,14 @@ export class SenseEngine {
 
     // Expression — use blendshapes if available, otherwise landmark-based
     let expression = '😐 平静'
-    if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-      expression = this.expressionFromBlendshapes(results.faceBlendshapes[0])
+    if (faceResults.faceBlendshapes && faceResults.faceBlendshapes.length > 0) {
+      expression = this.expressionFromBlendshapes(faceResults.faceBlendshapes[0])
     } else {
       expression = this.expressionClassifier.classify(landmarks).expression
     }
 
     // ---- Structured sense data (core output) ----
-    const senseFrame = extractFrame(results)
+    const senseFrame = extractFrame(faceResults, this.lastHandResult, this.lastPoseResult, this.lastSegResult)
 
     this.lastResult = this.buildResult(faceCount, pose.facing, distance,
       { gaze, blinkRate, focus },
@@ -496,7 +577,7 @@ export class SenseEngine {
     return this.lastResult
   }
 
-  drawOverlay(results) {
+  drawOverlay(faceResults, handResult, poseResult) {
     const canvas = this.overlay
     const ctx = this.ctx
 
@@ -508,10 +589,7 @@ export class SenseEngine {
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    if (!results.faceLandmarks || results.faceLandmarks.length === 0) return
-
-    // Compute cover transform:
-    // video intrinsic size vs displayed size
+    // Compute cover transform
     const vw = this.video.videoWidth
     const vh = this.video.videoHeight
     const dw = rect.width
@@ -522,65 +600,143 @@ export class SenseEngine {
 
     let scale, offsetX, offsetY
     if (videoAspect > displayAspect) {
-      // Video wider — crop sides
-      scale = dh / vh
-      offsetX = (dw - vw * scale) / 2
-      offsetY = 0
+      scale = dh / vh; offsetX = (dw - vw * scale) / 2; offsetY = 0
     } else {
-      // Video taller — crop top/bottom
-      scale = dw / vw
-      offsetX = 0
-      offsetY = (dh - vh * scale) / 2
+      scale = dw / vw; offsetX = 0; offsetY = (dh - vh * scale) / 2
     }
 
-    // Convert normalized landmark (0-1) to canvas pixel
-    // Also flip X because video is mirrored with scaleX(-1)
     const toX = (nx) => dw - (nx * vw * scale + offsetX)
     const toY = (ny) => ny * vh * scale + offsetY
 
-    for (const landmarks of results.faceLandmarks) {
-      // Face oval
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
-      ctx.lineWidth = 1.5
+    // ---- Face overlay ----
+    if (faceResults?.faceLandmarks) {
+      for (const landmarks of faceResults.faceLandmarks) {
+        // Face oval
+        ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
+        ctx.lineWidth = 1.5
 
-      const ovalIndices = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
-        397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93,
-        234, 127, 162, 21, 54, 103, 67, 109, 10]
+        const ovalIndices = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+          397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93,
+          234, 127, 162, 21, 54, 103, 67, 109, 10]
 
-      ctx.beginPath()
-      ctx.moveTo(toX(landmarks[ovalIndices[0]].x), toY(landmarks[ovalIndices[0]].y))
-      for (let i = 1; i < ovalIndices.length; i++) {
-        const p = landmarks[ovalIndices[i]]
-        ctx.lineTo(toX(p.x), toY(p.y))
-      }
-      ctx.stroke()
-
-      // Eye corners
-      ctx.fillStyle = 'rgba(96, 165, 250, 0.7)'
-      for (const i of [33, 133, 362, 263]) {
-        const p = landmarks[i]
         ctx.beginPath()
-        ctx.arc(toX(p.x), toY(p.y), 2.5, 0, Math.PI * 2)
-        ctx.fill()
-      }
+        ctx.moveTo(toX(landmarks[ovalIndices[0]].x), toY(landmarks[ovalIndices[0]].y))
+        for (let i = 1; i < ovalIndices.length; i++) {
+          const p = landmarks[ovalIndices[i]]
+          ctx.lineTo(toX(p.x), toY(p.y))
+        }
+        ctx.stroke()
 
-      // Iris
-      if (landmarks.length >= 478) {
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.85)'
-        for (const i of [468, 473]) {
+        // Eye corners
+        ctx.fillStyle = 'rgba(96, 165, 250, 0.7)'
+        for (const i of [33, 133, 362, 263]) {
           const p = landmarks[i]
           ctx.beginPath()
-          ctx.arc(toX(p.x), toY(p.y), 3.5, 0, Math.PI * 2)
+          ctx.arc(toX(p.x), toY(p.y), 2.5, 0, Math.PI * 2)
           ctx.fill()
+        }
+
+        // Iris
+        if (landmarks.length >= 478) {
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.85)'
+          for (const i of [468, 473]) {
+            const p = landmarks[i]
+            ctx.beginPath()
+            ctx.arc(toX(p.x), toY(p.y), 3.5, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+
+        // Nose tip
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'
+        const nose = landmarks[1]
+        ctx.beginPath()
+        ctx.arc(toX(nose.x), toY(nose.y), 2.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+
+    // ---- Hand overlay ----
+    if (handResult?.landmarks) {
+      const HAND_CONNECTIONS = [
+        [0,1],[1,2],[2,3],[3,4],       // thumb
+        [0,5],[5,6],[6,7],[7,8],       // index
+        [0,9],[9,10],[10,11],[11,12],  // middle
+        [0,13],[13,14],[14,15],[15,16],// ring
+        [0,17],[17,18],[18,19],[19,20],// pinky
+        [5,9],[9,13],[13,17]           // palm
+      ]
+
+      for (let h = 0; h < handResult.landmarks.length; h++) {
+        const hand = handResult.landmarks[h]
+        const color = h === 0 ? 'rgba(168, 85, 247, 0.8)' : 'rgba(236, 72, 153, 0.8)' // purple / pink
+
+        // Connections
+        ctx.strokeStyle = color.replace('0.8', '0.4')
+        ctx.lineWidth = 1.5
+        for (const [a, b] of HAND_CONNECTIONS) {
+          ctx.beginPath()
+          ctx.moveTo(toX(hand[a].x), toY(hand[a].y))
+          ctx.lineTo(toX(hand[b].x), toY(hand[b].y))
+          ctx.stroke()
+        }
+
+        // Joints
+        ctx.fillStyle = color
+        for (const pt of hand) {
+          ctx.beginPath()
+          ctx.arc(toX(pt.x), toY(pt.y), 2.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        // Gesture label
+        if (handResult.gestures && handResult.gestures[h] && handResult.gestures[h].length > 0) {
+          const gesture = handResult.gestures[h][0]
+          if (gesture.categoryName !== 'None') {
+            const wrist = hand[0]
+            ctx.font = '14px "Space Mono", monospace'
+            ctx.fillStyle = '#fff'
+            ctx.fillText(gesture.categoryName, toX(wrist.x) + 10, toY(wrist.y) - 10)
+          }
+        }
+      }
+    }
+
+    // ---- Pose overlay ----
+    if (poseResult?.landmarks && poseResult.landmarks.length > 0) {
+      const pose = poseResult.landmarks[0]
+      const POSE_CONNECTIONS = [
+        [11,12],                         // shoulders
+        [11,13],[13,15],                 // left arm
+        [12,14],[14,16],                 // right arm
+        [11,23],[12,24],                 // torso
+        [23,24],                         // hips
+        [23,25],[25,27],                 // left leg
+        [24,26],[26,28],                 // right leg
+      ]
+
+      // Connections
+      ctx.strokeStyle = 'rgba(45, 212, 191, 0.4)'
+      ctx.lineWidth = 2
+      for (const [a, b] of POSE_CONNECTIONS) {
+        if (pose[a] && pose[b]) {
+          ctx.beginPath()
+          ctx.moveTo(toX(pose[a].x), toY(pose[a].y))
+          ctx.lineTo(toX(pose[b].x), toY(pose[b].y))
+          ctx.stroke()
         }
       }
 
-      // Nose tip
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'
-      const nose = landmarks[1]
-      ctx.beginPath()
-      ctx.arc(toX(nose.x), toY(nose.y), 2.5, 0, Math.PI * 2)
-      ctx.fill()
+      // Joints
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.8)'
+      for (let i = 11; i < Math.min(pose.length, 29); i++) {
+        const pt = pose[i]
+        if (pt) {
+          ctx.beginPath()
+          ctx.arc(toX(pt.x), toY(pt.y), 3, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
     }
   }
 

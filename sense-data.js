@@ -232,22 +232,129 @@ function round(v, d = 4) {
 }
 
 /**
- * Process a full MediaPipe FaceLandmarker result into a HumanSenseFrame
+ * Process full MediaPipe results into a HumanSenseFrame
+ * 
+ * @param {object} faceResult - FaceLandmarker result
+ * @param {object} handResult - GestureRecognizer result (optional)
+ * @param {object} poseResult - PoseLandmarker result (optional)
+ * @param {object} segResult  - ImageSegmenter result (optional)
  */
-export function extractFrame(mediapipeResult, timestamp) {
+export function extractFrame(faceResult, handResult, poseResult, segResult, timestamp) {
+  // ---- Faces ----
   const faces = []
-  const count = mediapipeResult.faceLandmarks ? mediapipeResult.faceLandmarks.length : 0
+  const faceCount = faceResult?.faceLandmarks ? faceResult.faceLandmarks.length : 0
 
-  for (let i = 0; i < count; i++) {
-    const landmarks = mediapipeResult.faceLandmarks[i]
-    const bs = mediapipeResult.faceBlendshapes ? mediapipeResult.faceBlendshapes[i]?.categories : null
+  for (let i = 0; i < faceCount; i++) {
+    const landmarks = faceResult.faceLandmarks[i]
+    const bs = faceResult.faceBlendshapes ? faceResult.faceBlendshapes[i]?.categories : null
     faces.push(extractFace(landmarks, bs))
+  }
+
+  // ---- Hands ----
+  const hands = []
+  if (handResult?.landmarks) {
+    for (let h = 0; h < handResult.landmarks.length; h++) {
+      const lm = handResult.landmarks[h]
+      const handedness = handResult.handednesses?.[h]?.[0]
+      const gesture = handResult.gestures?.[h]?.[0]
+
+      // Finger states: check if fingertip is above (lower y) its PIP joint
+      const fingers = {
+        thumb:  lm[4].y < lm[3].y,
+        index:  lm[8].y < lm[6].y,
+        middle: lm[12].y < lm[10].y,
+        ring:   lm[16].y < lm[14].y,
+        pinky:  lm[20].y < lm[18].y,
+      }
+      const extendedCount = Object.values(fingers).filter(Boolean).length
+
+      hands.push({
+        side: handedness?.categoryName || 'unknown',  // 'Left' or 'Right'
+        confidence: round(handedness?.score || 0),
+        gesture: gesture?.categoryName !== 'None' ? gesture?.categoryName : null,
+        gestureConfidence: gesture?.categoryName !== 'None' ? round(gesture?.score || 0) : null,
+        wrist: { x: round(lm[0].x), y: round(lm[0].y), z: round(lm[0].z) },
+        fingers,
+        extendedCount,
+        landmarks: lm.map(p => ({ x: round(p.x), y: round(p.y), z: round(p.z) })),
+      })
+    }
+  }
+
+  // ---- Pose (body) ----
+  let body = null
+  if (poseResult?.landmarks && poseResult.landmarks.length > 0) {
+    const pose = poseResult.landmarks[0]
+
+    // Named body parts
+    const POSE_NAMES = {
+      0: 'nose', 
+      11: 'leftShoulder', 12: 'rightShoulder',
+      13: 'leftElbow', 14: 'rightElbow',
+      15: 'leftWrist', 16: 'rightWrist',
+      23: 'leftHip', 24: 'rightHip',
+      25: 'leftKnee', 26: 'rightKnee',
+      27: 'leftAnkle', 28: 'rightAnkle',
+    }
+
+    const joints = {}
+    for (const [idx, name] of Object.entries(POSE_NAMES)) {
+      const pt = pose[parseInt(idx)]
+      if (pt) {
+        joints[name] = { x: round(pt.x), y: round(pt.y), z: round(pt.z), visibility: round(pt.visibility || 0) }
+      }
+    }
+
+    // Derived metrics
+    const shoulderWidth = joints.leftShoulder && joints.rightShoulder
+      ? round(Math.abs(joints.rightShoulder.x - joints.leftShoulder.x))
+      : null
+
+    const shoulderMidY = joints.leftShoulder && joints.rightShoulder
+      ? (joints.leftShoulder.y + joints.rightShoulder.y) / 2
+      : null
+    const hipMidY = joints.leftHip && joints.rightHip
+      ? (joints.leftHip.y + joints.rightHip.y) / 2
+      : null
+    const torsoLength = shoulderMidY !== null && hipMidY !== null
+      ? round(Math.abs(hipMidY - shoulderMidY))
+      : null
+
+    body = {
+      joints,
+      shoulderWidth,
+      torsoLength,
+      landmarkCount: pose.length,
+    }
+  }
+
+  // ---- Segmentation ----
+  let segmentation = null
+  if (segResult?.categoryMask) {
+    const mask = segResult.categoryMask
+    // Compute person pixel ratio (how much of frame is person)
+    const data = mask.getAsUint8Array()
+    let personPixels = 0
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] > 0) personPixels++
+    }
+    const totalPixels = data.length
+    segmentation = {
+      personRatio: round(personPixels / totalPixels),
+      width: mask.width,
+      height: mask.height,
+      // mask itself not included (too large for JSON) — access via engine.lastSegResult
+    }
   }
 
   return {
     timestamp: timestamp || performance.now(),
-    faceCount: count,
+    faceCount,
     faces,
+    handCount: hands.length,
+    hands,
+    body,
+    segmentation,
   }
 }
 
