@@ -46,37 +46,51 @@
         <div class="gaze-dot"></div>
       </div>
 
-      <!-- Bottom HUD — compact single bar -->
+      <!-- Bottom HUD — all data, horizontal layout -->
       <div class="hud-bottom">
-        <div class="bottom-bar">
-          <!-- Synthesis text — left -->
-          <div class="synth-text" id="synthesis-text">等待感知...</div>
-
-          <!-- Sense chips — right -->
-          <div class="sense-chips">
-            <span class="chip" id="s-expr-icon">😐</span>
-            <span class="chip-text" id="s-expression">—</span>
-            <span class="chip-sep">·</span>
-            <span class="chip">👀</span>
-            <span class="chip-text" id="s-gaze">—</span>
-            <span class="chip-sep">·</span>
-            <span class="chip-text" id="s-posture">—</span>
-          </div>
-        </div>
-
-        <!-- Attention bar — thin, full width -->
+        <!-- Attention bar — thin, full width top -->
         <div class="attention-track">
           <div class="attention-fill" id="attention-bar"></div>
         </div>
-      </div>
 
-      <!-- Hidden elements for data binding (dashboard.js reads these) -->
-      <div style="display:none">
-        <span id="s-blink"></span>
-        <span id="s-facing"></span>
-        <span id="s-facing-icon"></span>
-        <span id="s-tilt"></span>
-        <span id="attention-pct"></span>
+        <div class="bottom-row">
+          <!-- Synthesis — left -->
+          <div class="synth-block">
+            <div class="synth-text" id="synthesis-text">等待感知...</div>
+          </div>
+
+          <!-- All sense data — right, compact grid -->
+          <div class="sense-chips">
+            <div class="chip-group">
+              <span class="chip-label">注视</span>
+              <span class="chip-val" id="s-gaze">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">表情</span>
+              <span class="chip-val"><span id="s-expr-icon">😐</span> <span id="s-expression">—</span></span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">姿态</span>
+              <span class="chip-val" id="s-posture">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">眨眼</span>
+              <span class="chip-val" id="s-blink">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">面对</span>
+              <span class="chip-val"><span id="s-facing-icon">🎯</span> <span id="s-facing">—</span></span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">倾斜</span>
+              <span class="chip-val" id="s-tilt">—</span>
+            </div>
+            <div class="chip-group">
+              <span class="chip-label">专注</span>
+              <span class="chip-val" id="attention-pct">—</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Timeline (collapsible, bottom-right) -->
