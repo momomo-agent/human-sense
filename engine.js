@@ -548,6 +548,10 @@ export class SenseEngine {
     // Segmentation (every 3rd frame — heaviest)
     if (this.imageSegmenter && this.frameCount % 3 === 0) {
       try {
+        // Close previous mask to avoid memory leak
+        if (this.lastSegResult?.categoryMask) {
+          this.lastSegResult.categoryMask.close()
+        }
         this.lastSegResult = this.imageSegmenter.segmentForVideo(this.video, now)
       } catch (e) { /* skip */ }
     }
@@ -568,8 +572,10 @@ export class SenseEngine {
 
     this.drawOverlay(faceResults, this.lastHandResult, this.lastPoseResult, this.lastObjectResult)
 
-    if (faceCount === 0 && !this.lastHandResult?.landmarks?.length) {
-      this.lastResult = this.buildResult(0, false, 0, null, null, null)
+    if (faceCount === 0) {
+      // No face — still extract hand/pose/seg/object data
+      const senseFrame = extractFrame(faceResults, this.lastHandResult, this.lastPoseResult, this.lastSegResult, this.lastObjectResult, this.lastFaceDetResult, this.lastHandLmResult)
+      this.lastResult = this.buildResult(0, false, 0, null, null, null, senseFrame)
       return this.lastResult
     }
 
