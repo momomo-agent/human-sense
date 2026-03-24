@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic Sense — Human Perception for AI Agents</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #050505;
+      --text: #e8e8e8;
+      --dim: #666;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+      max-width: 800px;
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .hero-sub {
+      font-size: 14px;
+      color: var(--dim);
+      max-width: 480px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: var(--surface);
+      transform: translateY(-1px);
+    }
+
+    /* ---- Data output showcase ---- */
+    .showcase {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      font-size: 13px;
+      color: var(--dim);
+      line-height: 1.7;
+      max-width: 520px;
+      margin-bottom: 48px;
+    }
+
+    /* Code block */
+    .code-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.8;
+      margin-bottom: 64px;
+    }
+
+    .code-block .comment { color: #555; }
+    .code-block .key { color: #93c5fd; }
+    .code-block .val { color: #86efac; }
+    .code-block .num { color: #fbbf24; }
+    .code-block .bracket { color: #666; }
+
+    /* ---- Features grid ---- */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 64px;
+    }
+
+    .feature {
+      background: var(--bg);
+      padding: 32px 28px;
+    }
+
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .feature-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .feature-desc {
+      font-size: 12px;
+      color: var(--dim);
+      line-height: 1.6;
+    }
+
+    /* ---- Live Demo ---- */
+    .live-demo {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .demo-container {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .demo-viewport {
+      position: relative;
+      aspect-ratio: 4/3;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .demo-viewport video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    .demo-viewport canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .demo-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #333;
+    }
+
+    .demo-placeholder-icon {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .demo-placeholder-text {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .demo-data {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .demo-data-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .demo-data-label {
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 0.04em;
+    }
+
+    .demo-data-value {
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 768px) {
+      .demo-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ---- Architecture ---- */
+    .arch {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 40px;
+    }
+
+    .arch-layer {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .arch-label {
+      flex: 0 0 180px;
+      padding: 20px 24px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-right: 1px solid var(--border);
+    }
+
+    .arch-content {
+      flex: 1;
+      padding: 20px 24px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .arch-item {
+      font-size: 12px;
+      color: var(--dim);
+      padding: 4px 12px;
+      background: var(--surface);
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .arch-arrow {
+      text-align: center;
+      padding: 8px;
+      color: #333;
+      font-size: 18px;
+    }
+
+    /* ---- Usage ---- */
+    .usage {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ---- Footer ---- */
+    .footer {
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      margin-top: 80px;
+    }
+
+    .footer-text {
+      font-size: 11px;
+      color: #333;
+      letter-spacing: 0.06em;
+    }
+
+    .footer a {
+      color: var(--dim);
+      text-decoration: none;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .features {
+        grid-template-columns: 1fr;
+      }
+      .arch-layer {
+        flex-direction: column;
+      }
+      .arch-label {
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-eyebrow">Open Source · Zero Backend · Browser Native</div>
+    <h1 class="hero-title">Agentic <em>Sense</em></h1>
+    <p class="hero-sub">
+      Give your AI agent eyes. Structured human perception data from a webcam — 
+      478 face landmarks, 52 blendshapes, gaze, posture, emotion — 
+      all running locally in the browser.
+    </p>
+    <div class="hero-actions">
+      <a href="demo/" class="btn btn-primary">Live Demo</a>
+      <a href="https://github.com/momomo-agent/agentic-sense" class="btn btn-secondary">GitHub →</a>
+    </div>
+  </section>
+
+  <!-- Data output -->
+  <section class="showcase">
+    <div class="section-label">Core Output</div>
+    <h2 class="section-title">Raw perception, not opinions</h2>
+    <p class="section-desc">
+      Every frame, agentic-sense outputs structured data about every face in view.
+      No "happy" or "sad" labels — just precise geometric and muscular measurements.
+      Your agent decides what they mean.
+    </p>
+
+    <div class="code-block">
+      <span class="bracket">{</span><br>
+      &nbsp;&nbsp;<span class="key">"faceCount"</span>: <span class="num">1</span>,<br>
+      &nbsp;&nbsp;<span class="key">"faces"</span>: [<span class="bracket">{</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"head"</span>: <span class="bracket">{</span> <span class="key">"yaw"</span>: <span class="num">-0.023</span>, <span class="key">"pitch"</span>: <span class="num">0.041</span>, <span class="key">"roll"</span>: <span class="num">1.2</span>, <span class="key">"facing"</span>: <span class="val">true</span> <span class="bracket">}</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"eyes"</span>: <span class="bracket">{</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"avgEAR"</span>: <span class="num">0.312</span>, <span class="comment">// eye aspect ratio — blink detection</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"ipd"</span>: <span class="num">0.089</span>, <span class="comment">// inter-pupillary distance → screen distance</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"iris"</span>: <span class="bracket">{</span> <span class="key">"left"</span>: <span class="bracket">{</span> <span class="key">"ratioX"</span>: <span class="num">0.52</span> <span class="bracket">}</span>, <span class="key">"right"</span>: <span class="bracket">{</span> <span class="key">"ratioX"</span>: <span class="num">0.48</span> <span class="bracket">}</span> <span class="bracket">}</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="bracket">}</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"mouth"</span>: <span class="bracket">{</span> <span class="key">"ratio"</span>: <span class="num">0.12</span>, <span class="key">"openness"</span>: <span class="num">0.008</span> <span class="bracket">}</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"blendshapes"</span>: <span class="bracket">{</span> <span class="key">"jawOpen"</span>: <span class="num">0.03</span>, <span class="key">"smileL"</span>: <span class="num">0.12</span>, <span class="key">"smileR"</span>: <span class="num">0.09</span>, <span class="comment">... 38 values</span> <span class="bracket">}</span><br>
+      &nbsp;&nbsp;<span class="bracket">}]</span><br>
+      <span class="bracket">}</span>
+    </div>
+
+    <!-- Features -->
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">👁</div>
+        <div class="feature-title">478 Landmarks</div>
+        <div class="feature-desc">Full face mesh with iris tracking. Head pose, eye corners, lip contour — sub-pixel precision at 30fps.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎭</div>
+        <div class="feature-title">52 Blendshapes</div>
+        <div class="feature-desc">Every facial muscle as a 0-1 weight. jawOpen, mouthSmile, browDown, eyeSquint — the raw signal for expression analysis.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📐</div>
+        <div class="feature-title">Geometric Metrics</div>
+        <div class="feature-desc">EAR (eye aspect ratio), IPD (inter-pupillary distance), mouth ratio, head yaw/pitch/roll — computed per frame.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Multi-Face</div>
+        <div class="feature-desc">Track up to 3 faces simultaneously. Each face gets its own complete data struct.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔒</div>
+        <div class="feature-title">Fully Local</div>
+        <div class="feature-desc">Zero network requests after load. MediaPipe WASM runs in-browser. Camera feed never leaves the device.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📦</div>
+        <div class="feature-title">~14MB Total</div>
+        <div class="feature-desc">WASM engine + face model + your code. No npm install, no build step. One import and you're sensing.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Demo (inline) -->
+  <section class="live-demo" id="live-demo">
+    <div class="section-label">Try It</div>
+    <h2 class="section-title">See it in action</h2>
+    <p class="section-desc">
+      Click below to activate your camera. All processing happens locally — nothing leaves your browser.
+    </p>
+
+    <div class="demo-container">
+      <div class="demo-viewport">
+        <video id="demo-video" autoplay playsinline muted></video>
+        <canvas id="demo-overlay"></canvas>
+        <div class="demo-placeholder" id="demo-placeholder">
+          <div class="demo-placeholder-icon">👁</div>
+          <div class="demo-placeholder-text">Camera off</div>
+        </div>
+      </div>
+      <div class="demo-data" id="demo-data">
+        <div class="demo-data-row">
+          <span class="demo-data-label">Status</span>
+          <span class="demo-data-value" id="dd-status">Waiting...</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Head Yaw</span>
+          <span class="demo-data-value" id="dd-yaw">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Head Pitch</span>
+          <span class="demo-data-value" id="dd-pitch">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Facing</span>
+          <span class="demo-data-value" id="dd-facing">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Eye Aspect Ratio</span>
+          <span class="demo-data-value" id="dd-ear">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">IPD (distance)</span>
+          <span class="demo-data-value" id="dd-ipd">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Mouth Open</span>
+          <span class="demo-data-value" id="dd-mouth">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Smile</span>
+          <span class="demo-data-value" id="dd-smile">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Brow Up</span>
+          <span class="demo-data-value" id="dd-brow">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top: 24px;">
+      <button class="btn btn-primary" id="demo-btn" onclick="toggleDemo()">Start Camera</button>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section class="arch">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-title">Three layers, use what you need</h2>
+    <p class="section-desc">
+      Core gives you raw data. Interpreters add optional judgments. Debug UI helps you tune.
+    </p>
+
+    <div class="arch-layers">
+      <div class="arch-layer">
+        <div class="arch-label" style="color: var(--green)">Core Data</div>
+        <div class="arch-content">
+          <span class="arch-item">landmarks × 478</span>
+          <span class="arch-item">blendshapes × 52</span>
+          <span class="arch-item">head pose</span>
+          <span class="arch-item">eye metrics</span>
+          <span class="arch-item">mouth geometry</span>
+          <span class="arch-item">iris position</span>
+        </div>
+      </div>
+      <div class="arch-arrow">↑ accurate</div>
+      <div class="arch-layer">
+        <div class="arch-label" style="color: var(--accent)">Interpreters</div>
+        <div class="arch-content">
+          <span class="arch-item">expression classifier</span>
+          <span class="arch-item">focus scorer</span>
+          <span class="arch-item">gaze estimator</span>
+          <span class="arch-item">blink detector</span>
+          <span class="arch-item">synthesis engine</span>
+        </div>
+      </div>
+      <div class="arch-arrow">↑ optional</div>
+      <div class="arch-layer">
+        <div class="arch-label" style="color: var(--dim)">Debug UI</div>
+        <div class="arch-content">
+          <span class="arch-item">landmark overlay</span>
+          <span class="arch-item">data dashboard</span>
+          <span class="arch-item">timeline log</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Usage -->
+  <section class="usage">
+    <div class="section-label">Quick Start</div>
+    <h2 class="section-title">Three lines to perceive</h2>
+
+    <div class="code-block">
+      <span class="comment">// 1. Import</span><br>
+      <span class="key">import</span> { SenseEngine } <span class="key">from</span> <span class="val">'./engine.js'</span><br>
+      <span class="key">import</span> { extractFrame } <span class="key">from</span> <span class="val">'./sense-data.js'</span><br>
+      <br>
+      <span class="comment">// 2. Init</span><br>
+      <span class="key">const</span> engine = <span class="key">new</span> SenseEngine(videoEl, canvasEl)<br>
+      <span class="key">await</span> engine.init()<br>
+      <br>
+      <span class="comment">// 3. Sense</span><br>
+      <span class="key">function</span> loop() {<br>
+      &nbsp;&nbsp;<span class="key">const</span> result = engine.detect()<br>
+      &nbsp;&nbsp;<span class="key">if</span> (result.sense) {<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// result.sense.faces[0].head.facing → boolean</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// result.sense.faces[0].eyes.avgEAR → blink state</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// result.sense.faces[0].blendshapes.smileL → 0-1</span><br>
+      &nbsp;&nbsp;}<br>
+      &nbsp;&nbsp;requestAnimationFrame(loop)<br>
+      }<br>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p class="footer-text">
+      Built by <a href="https://github.com/momomo-agent">momomo-agent</a> · 
+      Powered by <a href="https://developers.google.com/mediapipe">MediaPipe</a> · 
+      <a href="https://github.com/momomo-agent/agentic-sense">Source on GitHub</a>
+    </p>
+  </footer>
+
+  <script type="module">
+    // Inline demo — lightweight, uses sense-data.js directly
+    import { extractFrame, IDX } from './demo/sense-data.js'
+
+    let demoRunning = false
+    let demoStream = null
+    let landmarker = null
+
+    const video = document.getElementById('demo-video')
+    const overlay = document.getElementById('demo-overlay')
+    const ctx = overlay.getContext('2d')
+    const placeholder = document.getElementById('demo-placeholder')
+    const btn = document.getElementById('demo-btn')
+
+    const dd = (id) => document.getElementById(id)
+
+    window.toggleDemo = async function() {
+      if (demoRunning) {
+        stopDemo()
+        return
+      }
+      btn.textContent = 'Loading...'
+      btn.disabled = true
+
+      try {
+        // Start camera
+        demoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        })
+        video.srcObject = demoStream
+        await video.play()
+        placeholder.style.display = 'none'
+
+        // Load MediaPipe
+        const vision = await import('./demo/mediapipe/vision_bundle.mjs')
+        const { FaceLandmarker, FilesetResolver } = vision
+
+        const wasmFileset = await FilesetResolver.forVisionTasks('./demo/mediapipe/')
+        landmarker = await FaceLandmarker.createFromOptions(wasmFileset, {
+          baseOptions: {
+            modelAssetPath: './demo/mediapipe/face_landmarker.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: false
+        })
+
+        demoRunning = true
+        btn.textContent = 'Stop Camera'
+        btn.disabled = false
+        dd('dd-status').textContent = 'Running'
+        dd('dd-status').style.color = '#22c55e'
+
+        demoLoop()
+      } catch (e) {
+        console.error('Demo error:', e)
+        btn.textContent = 'Start Camera'
+        btn.disabled = false
+        dd('dd-status').textContent = 'Error: ' + e.message
+        dd('dd-status').style.color = '#ef4444'
+      }
+    }
+
+    function stopDemo() {
+      demoRunning = false
+      if (demoStream) {
+        demoStream.getTracks().forEach(t => t.stop())
+        demoStream = null
+      }
+      video.srcObject = null
+      placeholder.style.display = 'flex'
+      ctx.clearRect(0, 0, overlay.width, overlay.height)
+      btn.textContent = 'Start Camera'
+
+      dd('dd-status').textContent = 'Stopped'
+      dd('dd-status').style.color = 'var(--dim)'
+      for (const id of ['dd-yaw','dd-pitch','dd-facing','dd-ear','dd-ipd','dd-mouth','dd-smile','dd-brow']) {
+        dd(id).textContent = '—'
+        dd(id).style.color = ''
+      }
+    }
+
+    function demoLoop() {
+      if (!demoRunning || !landmarker) return
+
+      if (video.readyState >= 2) {
+        const results = landmarker.detectForVideo(video, performance.now())
+        const frame = extractFrame(results)
+
+        if (frame.faceCount > 0) {
+          const f = frame.faces[0]
+
+          dd('dd-yaw').textContent = f.head.yaw.toFixed(3)
+          dd('dd-pitch').textContent = f.head.pitch.toFixed(3)
+          dd('dd-facing').textContent = f.head.facing ? '✓ Yes' : '✗ No'
+          dd('dd-facing').style.color = f.head.facing ? '#22c55e' : '#ef4444'
+          dd('dd-ear').textContent = f.eyes.avgEAR.toFixed(3)
+          dd('dd-ipd').textContent = f.eyes.ipd.toFixed(4)
+          dd('dd-mouth').textContent = (f.blendshapes.jawOpen || 0).toFixed(3)
+          dd('dd-smile').textContent = ((f.blendshapes.smileL + f.blendshapes.smileR) / 2).toFixed(3)
+          dd('dd-brow').textContent = (f.blendshapes.browUp || 0).toFixed(3)
+
+          // Draw overlay
+          drawLandmarks(results, f)
+        } else {
+          dd('dd-status').textContent = 'No face'
+          dd('dd-status').style.color = '#f59e0b'
+          ctx.clearRect(0, 0, overlay.width, overlay.height)
+        }
+
+        if (frame.faceCount > 0) {
+          dd('dd-status').textContent = `${frame.faceCount} face${frame.faceCount > 1 ? 's' : ''}`
+          dd('dd-status').style.color = '#22c55e'
+        }
+      }
+
+      requestAnimationFrame(demoLoop)
+    }
+
+    function drawLandmarks(results, face) {
+      const rect = video.getBoundingClientRect()
+      if (overlay.width !== rect.width || overlay.height !== rect.height) {
+        overlay.width = rect.width
+        overlay.height = rect.height
+      }
+      ctx.clearRect(0, 0, overlay.width, overlay.height)
+
+      if (!results.faceLandmarks || !results.faceLandmarks[0]) return
+
+      const lm = results.faceLandmarks[0]
+      const vw = video.videoWidth, vh = video.videoHeight
+      const dw = rect.width, dh = rect.height
+      const videoAspect = vw / vh, displayAspect = dw / dh
+
+      let scale, offsetX, offsetY
+      if (videoAspect > displayAspect) {
+        scale = dh / vh; offsetX = (dw - vw * scale) / 2; offsetY = 0
+      } else {
+        scale = dw / vw; offsetX = 0; offsetY = (dh - vh * scale) / 2
+      }
+
+      const toX = (nx) => dw - (nx * vw * scale + offsetX)
+      const toY = (ny) => ny * vh * scale + offsetY
+
+      // Face oval
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
+      ctx.lineWidth = 1.5
+      const oval = IDX.faceOval
+      ctx.beginPath()
+      ctx.moveTo(toX(lm[oval[0]].x), toY(lm[oval[0]].y))
+      for (let i = 1; i < oval.length; i++) {
+        ctx.lineTo(toX(lm[oval[i]].x), toY(lm[oval[i]].y))
+      }
+      ctx.stroke()
+
+      // Eye corners
+      ctx.fillStyle = 'rgba(96, 165, 250, 0.7)'
+      for (const i of [33, 133, 362, 263]) {
+        ctx.beginPath()
+        ctx.arc(toX(lm[i].x), toY(lm[i].y), 2.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      // Iris
+      if (lm.length >= 478) {
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.85)'
+        for (const i of [468, 473]) {
+          ctx.beginPath()
+          ctx.arc(toX(lm[i].x), toY(lm[i].y), 3.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+  </script>
+
+</body>
+</html>
