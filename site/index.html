@@ -205,6 +205,101 @@
       line-height: 1.6;
     }
 
+    /* ---- Live Demo ---- */
+    .live-demo {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .demo-container {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .demo-viewport {
+      position: relative;
+      aspect-ratio: 4/3;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .demo-viewport video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    .demo-viewport canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .demo-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #333;
+    }
+
+    .demo-placeholder-icon {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .demo-placeholder-text {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .demo-data {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .demo-data-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .demo-data-label {
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 0.04em;
+    }
+
+    .demo-data-value {
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 768px) {
+      .demo-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* ---- Architecture ---- */
     .arch {
       padding: 80px 24px;
@@ -384,6 +479,68 @@
     </div>
   </section>
 
+  <!-- Live Demo (inline) -->
+  <section class="live-demo" id="live-demo">
+    <div class="section-label">Try It</div>
+    <h2 class="section-title">See it in action</h2>
+    <p class="section-desc">
+      Click below to activate your camera. All processing happens locally — nothing leaves your browser.
+    </p>
+
+    <div class="demo-container">
+      <div class="demo-viewport">
+        <video id="demo-video" autoplay playsinline muted></video>
+        <canvas id="demo-overlay"></canvas>
+        <div class="demo-placeholder" id="demo-placeholder">
+          <div class="demo-placeholder-icon">👁</div>
+          <div class="demo-placeholder-text">Camera off</div>
+        </div>
+      </div>
+      <div class="demo-data" id="demo-data">
+        <div class="demo-data-row">
+          <span class="demo-data-label">Status</span>
+          <span class="demo-data-value" id="dd-status">Waiting...</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Head Yaw</span>
+          <span class="demo-data-value" id="dd-yaw">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Head Pitch</span>
+          <span class="demo-data-value" id="dd-pitch">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Facing</span>
+          <span class="demo-data-value" id="dd-facing">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Eye Aspect Ratio</span>
+          <span class="demo-data-value" id="dd-ear">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">IPD (distance)</span>
+          <span class="demo-data-value" id="dd-ipd">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Mouth Open</span>
+          <span class="demo-data-value" id="dd-mouth">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Smile</span>
+          <span class="demo-data-value" id="dd-smile">—</span>
+        </div>
+        <div class="demo-data-row">
+          <span class="demo-data-label">Brow Up</span>
+          <span class="demo-data-value" id="dd-brow">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top: 24px;">
+      <button class="btn btn-primary" id="demo-btn" onclick="toggleDemo()">Start Camera</button>
+    </div>
+  </section>
+
   <!-- Architecture -->
   <section class="arch">
     <div class="section-label">Architecture</div>
@@ -462,6 +619,183 @@
       <a href="https://github.com/momomo-agent/agentic-sense">Source on GitHub</a>
     </p>
   </footer>
+
+  <script type="module">
+    // Inline demo — lightweight, uses sense-data.js directly
+    import { extractFrame, IDX } from './demo/sense-data.js'
+
+    let demoRunning = false
+    let demoStream = null
+    let landmarker = null
+
+    const video = document.getElementById('demo-video')
+    const overlay = document.getElementById('demo-overlay')
+    const ctx = overlay.getContext('2d')
+    const placeholder = document.getElementById('demo-placeholder')
+    const btn = document.getElementById('demo-btn')
+
+    const dd = (id) => document.getElementById(id)
+
+    window.toggleDemo = async function() {
+      if (demoRunning) {
+        stopDemo()
+        return
+      }
+      btn.textContent = 'Loading...'
+      btn.disabled = true
+
+      try {
+        // Start camera
+        demoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        })
+        video.srcObject = demoStream
+        await video.play()
+        placeholder.style.display = 'none'
+
+        // Load MediaPipe
+        const vision = await import('./demo/mediapipe/vision_bundle.mjs')
+        const { FaceLandmarker, FilesetResolver } = vision
+
+        const wasmFileset = await FilesetResolver.forVisionTasks('./demo/mediapipe/')
+        landmarker = await FaceLandmarker.createFromOptions(wasmFileset, {
+          baseOptions: {
+            modelAssetPath: './demo/mediapipe/face_landmarker.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: false
+        })
+
+        demoRunning = true
+        btn.textContent = 'Stop Camera'
+        btn.disabled = false
+        dd('dd-status').textContent = 'Running'
+        dd('dd-status').style.color = '#22c55e'
+
+        demoLoop()
+      } catch (e) {
+        console.error('Demo error:', e)
+        btn.textContent = 'Start Camera'
+        btn.disabled = false
+        dd('dd-status').textContent = 'Error: ' + e.message
+        dd('dd-status').style.color = '#ef4444'
+      }
+    }
+
+    function stopDemo() {
+      demoRunning = false
+      if (demoStream) {
+        demoStream.getTracks().forEach(t => t.stop())
+        demoStream = null
+      }
+      video.srcObject = null
+      placeholder.style.display = 'flex'
+      ctx.clearRect(0, 0, overlay.width, overlay.height)
+      btn.textContent = 'Start Camera'
+
+      dd('dd-status').textContent = 'Stopped'
+      dd('dd-status').style.color = 'var(--dim)'
+      for (const id of ['dd-yaw','dd-pitch','dd-facing','dd-ear','dd-ipd','dd-mouth','dd-smile','dd-brow']) {
+        dd(id).textContent = '—'
+        dd(id).style.color = ''
+      }
+    }
+
+    function demoLoop() {
+      if (!demoRunning || !landmarker) return
+
+      if (video.readyState >= 2) {
+        const results = landmarker.detectForVideo(video, performance.now())
+        const frame = extractFrame(results)
+
+        if (frame.faceCount > 0) {
+          const f = frame.faces[0]
+
+          dd('dd-yaw').textContent = f.head.yaw.toFixed(3)
+          dd('dd-pitch').textContent = f.head.pitch.toFixed(3)
+          dd('dd-facing').textContent = f.head.facing ? '✓ Yes' : '✗ No'
+          dd('dd-facing').style.color = f.head.facing ? '#22c55e' : '#ef4444'
+          dd('dd-ear').textContent = f.eyes.avgEAR.toFixed(3)
+          dd('dd-ipd').textContent = f.eyes.ipd.toFixed(4)
+          dd('dd-mouth').textContent = (f.blendshapes.jawOpen || 0).toFixed(3)
+          dd('dd-smile').textContent = ((f.blendshapes.smileL + f.blendshapes.smileR) / 2).toFixed(3)
+          dd('dd-brow').textContent = (f.blendshapes.browUp || 0).toFixed(3)
+
+          // Draw overlay
+          drawLandmarks(results, f)
+        } else {
+          dd('dd-status').textContent = 'No face'
+          dd('dd-status').style.color = '#f59e0b'
+          ctx.clearRect(0, 0, overlay.width, overlay.height)
+        }
+
+        if (frame.faceCount > 0) {
+          dd('dd-status').textContent = `${frame.faceCount} face${frame.faceCount > 1 ? 's' : ''}`
+          dd('dd-status').style.color = '#22c55e'
+        }
+      }
+
+      requestAnimationFrame(demoLoop)
+    }
+
+    function drawLandmarks(results, face) {
+      const rect = video.getBoundingClientRect()
+      if (overlay.width !== rect.width || overlay.height !== rect.height) {
+        overlay.width = rect.width
+        overlay.height = rect.height
+      }
+      ctx.clearRect(0, 0, overlay.width, overlay.height)
+
+      if (!results.faceLandmarks || !results.faceLandmarks[0]) return
+
+      const lm = results.faceLandmarks[0]
+      const vw = video.videoWidth, vh = video.videoHeight
+      const dw = rect.width, dh = rect.height
+      const videoAspect = vw / vh, displayAspect = dw / dh
+
+      let scale, offsetX, offsetY
+      if (videoAspect > displayAspect) {
+        scale = dh / vh; offsetX = (dw - vw * scale) / 2; offsetY = 0
+      } else {
+        scale = dw / vw; offsetX = 0; offsetY = (dh - vh * scale) / 2
+      }
+
+      const toX = (nx) => dw - (nx * vw * scale + offsetX)
+      const toY = (ny) => ny * vh * scale + offsetY
+
+      // Face oval
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
+      ctx.lineWidth = 1.5
+      const oval = IDX.faceOval
+      ctx.beginPath()
+      ctx.moveTo(toX(lm[oval[0]].x), toY(lm[oval[0]].y))
+      for (let i = 1; i < oval.length; i++) {
+        ctx.lineTo(toX(lm[oval[i]].x), toY(lm[oval[i]].y))
+      }
+      ctx.stroke()
+
+      // Eye corners
+      ctx.fillStyle = 'rgba(96, 165, 250, 0.7)'
+      for (const i of [33, 133, 362, 263]) {
+        ctx.beginPath()
+        ctx.arc(toX(lm[i].x), toY(lm[i].y), 2.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      // Iris
+      if (lm.length >= 478) {
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.85)'
+        for (const i of [468, 473]) {
+          ctx.beginPath()
+          ctx.arc(toX(lm[i].x), toY(lm[i].y), 3.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+  </script>
 
 </body>
 </html>
