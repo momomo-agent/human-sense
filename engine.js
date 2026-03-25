@@ -1097,41 +1097,55 @@ export class SenseEngine {
 
         // Draw gesture emoji + label
         if (gestureEmoji) {
-          // Big emoji
-          ctx.font = '32px sans-serif'
+          // Big emoji — white background glow for visibility
+          ctx.save()
+          ctx.font = '36px serif'
           ctx.textAlign = 'center'
-          ctx.fillText(gestureEmoji, wristX, wristY - 30)
+          ctx.textBaseline = 'middle'
+          // Shadow for contrast
+          ctx.shadowColor = 'rgba(0,0,0,0.8)'
+          ctx.shadowBlur = 8
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = 2
+          ctx.fillStyle = '#ffffff'
+          ctx.fillText(gestureEmoji, wristX, wristY - 40)
+          ctx.restore()
 
-          // Label background
-          const labelText = gestureName
-          ctx.font = '13px "Inter", sans-serif'
-          const metrics = ctx.measureText(labelText)
-          const lw = metrics.width + 12
-          const lh = 20
-          const lx = wristX - lw / 2
-          const ly = wristY - 22
+          // Name label with background pill
+          ctx.save()
+          ctx.font = '600 12px "Inter", sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          const metrics = ctx.measureText(gestureName)
+          const pw = metrics.width + 16
+          const ph = 22
+          const px = wristX - pw / 2
+          const py = wristY - 16
 
-          ctx.fillStyle = 'rgba(0,0,0,0.6)'
+          // Pill background
+          ctx.fillStyle = 'rgba(0,0,0,0.7)'
           ctx.beginPath()
-          ctx.roundRect(lx, ly, lw, lh, 4)
+          ctx.roundRect(px, py, pw, ph, 11)
           ctx.fill()
 
-          ctx.fillStyle = 'rgba(255,255,255,0.9)'
-          ctx.textAlign = 'center'
-          ctx.fillText(labelText, wristX, ly + 14)
-          ctx.textAlign = 'start'
+          // Pill text
+          ctx.fillStyle = '#ffffff'
+          ctx.fillText(gestureName, wristX, py + ph / 2)
+          ctx.restore()
         }
 
-        // 3. Draw action emoji (if any active actions for this hand)
-        if (actions) {
-          const handActions = actions.filter(a => true) // actions are not hand-specific currently
-          if (h === 0 && handActions.length > 0) {
-            const actionEmoji = handActions.map(a => a.emoji).join('')
-            ctx.font = '24px sans-serif'
-            ctx.textAlign = 'center'
-            ctx.fillText(actionEmoji, wristX, wristY + 30)
-            ctx.textAlign = 'start'
-          }
+        // 3. Draw action emoji below wrist
+        if (actions && h === 0 && actions.length > 0) {
+          ctx.save()
+          const actionEmoji = actions.map(a => a.emoji).join(' ')
+          ctx.font = '28px serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.shadowColor = 'rgba(0,0,0,0.8)'
+          ctx.shadowBlur = 6
+          ctx.fillStyle = '#ffffff'
+          ctx.fillText(actionEmoji, wristX, wristY + 30)
+          ctx.restore()
         }
       }
     }
