@@ -553,6 +553,13 @@ export class SenseEngine {
 
     this.lastResult = null
     this.lastCustomGestures = []
+
+    // Speech subtitle state
+    this.speechState = {
+      lines: [],          // { text, isFinal, timestamp, wakeWord }
+      currentInterim: '',
+      wakeFlash: 0,       // wake-word flash countdown (frames)
+    }
     this.lastActions = []
     this.frameCount = 0
     this.lastHandResult = null
@@ -1212,6 +1219,122 @@ export class SenseEngine {
           ctx.fillText(label, Math.min(x1, x2), Math.min(y1, y2) - 4)
         }
       }
+    }
+
+    // ---- Speech subtitle overlay ----
+    if (this.speechState) {
+      const ss = this.speechState
+      const now = Date.now()
+
+      // Decrement wake flash
+      if (ss.wakeFlash > 0) ss.wakeFlash--
+
+      // Collect visible lines (final lines < 5s old + current interim)
+      const visibleLines = []
+      for (const line of ss.lines) {
+        const age = now - line.timestamp
+        if (age < 5000) {
+          visibleLines.push({ text: line.text, opacity: Math.max(0.2, 1 - age / 5000), wakeWord: line.wakeWord })
+        }
+      }
+      if (ss.currentInterim) {
+        visibleLines.push({ text: ss.currentInterim, opacity: 0.6, wakeWord: null, isInterim: true })
+      }
+
+      if (visibleLines.length > 0) {
+        const subtitleY = canvas.height * 0.70
+        const lineHeight = 36
+        const baseFontSize = 16
+
+        for (let i = 0; i < visibleLines.length; i++) {
+          const line = visibleLines[i]
+          const y = subtitleY + (i - visibleLines.length + 1) * lineHeight
+
+          ctx.save()
+          ctx.font = `500 ${baseFontSize}px "Inter", sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+
+          // Measure full text for pill background
+          const fullWidth = ctx.measureText(line.text).width
+          const pillW = fullWidth + 32
+          const pillH = 28
+          const pillX = canvas.width / 2 - pillW / 2
+          const pillY = y - pillH / 2
+
+          // Pill background
+          ctx.fillStyle = `rgba(0,0,0,${0.7 * line.opacity})`
+          ctx.beginPath()
+          ctx.roundRect(pillX, pillY, pillW, pillH, 14)
+          ctx.fill()
+
+          // Wake flash green border
+          if (ss.wakeFlash > 0) {
+            const flashAlpha = (ss.wakeFlash / 30) * 0.8
+            ctx.strokeStyle = `rgba(74, 222, 128, ${flashAlpha})`
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.roundRect(pillX, pillY, pillW, pillH, 14)
+            ctx.stroke()
+          }
+
+          // Render text with wake word highlighting
+          if (line.wakeWord) {
+            // Split text around wake word and render segments
+            const lower = line.text.toLowerCase()
+            const wakeIdx = lower.indexOf(line.wakeWord.toLowerCase())
+            if (wakeIdx >= 0) {
+              const before = line.text.slice(0, wakeIdx)
+              const wake = line.text.slice(wakeIdx, wakeIdx + line.wakeWord.length)
+              const after = line.text.slice(wakeIdx + line.wakeWord.length)
+
+              // Compute segment widths
+              const beforeW = ctx.measureText(before).width
+              const wakeW = ctx.measureText(wake).width
+
+              const startX = canvas.width / 2 - fullWidth / 2
+
+              // Before part (white)
+              ctx.fillStyle = `rgba(255,255,255,${line.opacity})`
+              ctx.textAlign = 'left'
+              ctx.fillText(before, startX, y)
+
+              // Wake word part (green)
+              ctx.fillStyle = `rgba(74, 222, 128, ${line.opacity})`
+              ctx.fillText(wake, startX + beforeW, y)
+
+              // After part (white)
+              ctx.fillStyle = `rgba(255,255,255,${line.opacity})`
+              ctx.fillText(after, startX + beforeW + wakeW, y)
+            } else {
+              ctx.fillStyle = `rgba(255,255,255,${line.opacity})`
+              ctx.fillText(line.text, canvas.width / 2, y)
+            }
+          } else {
+            ctx.fillStyle = `rgba(255,255,255,${line.opacity})`
+            ctx.fillText(line.text, canvas.width / 2, y)
+          }
+
+          ctx.restore()
+        }
+      }
+    }
+  }
+
+  updateSpeech(text, isFinal, wakeDetected, wakeWord) {
+    if (isFinal) {
+      this.speechState.lines.push({
+        text,
+        timestamp: Date.now(),
+        wakeWord: wakeDetected ? wakeWord : null
+      })
+      if (this.speechState.lines.length > 3) this.speechState.lines.shift()
+      this.speechState.currentInterim = ''
+    } else {
+      this.speechState.currentInterim = text
+    }
+    if (wakeDetected) {
+      this.speechState.wakeFlash = 30
     }
   }
 

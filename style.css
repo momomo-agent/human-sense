@@ -521,6 +521,57 @@ body {
   width: 0%;
 }
 
+/* -- Audio section -- */
+.audio-section {
+  flex-direction: row !important;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.audio-volume-wrap {
+  width: 6px;
+  height: 48px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.volume-bar {
+  width: 100%;
+  height: 0%;
+  background: var(--green);
+  border-radius: 3px;
+  transition: height 0.08s ease-out;
+  box-shadow: 0 0 6px rgba(34,197,94,0.3);
+}
+
+.audio-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+}
+
+#s-audio-status {
+  color: rgba(255,255,255,0.5);
+}
+
+#s-audio-status.listening {
+  color: var(--green);
+}
+
+#s-audio-status.woke {
+  color: var(--amber);
+}
+
+#s-wake-status.active {
+  color: var(--green);
+  font-weight: 600;
+}
+
 /* -- Synthesis strip -- */
 .synth-strip {
   background: rgba(0,0,0,0.35);

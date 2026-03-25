@@ -49,6 +49,11 @@ export class Dashboard {
       // Synthesis + timeline
       synthesisText: document.getElementById('synthesis-text'),
       timeline: document.getElementById('timeline-entries'),
+
+      // Audio section
+      volumeBar: document.getElementById('volume-bar'),
+      audioStatus: document.getElementById('s-audio-status'),
+      wakeStatus: document.getElementById('s-wake-status'),
     }
   }
 
@@ -232,6 +237,41 @@ export class Dashboard {
           <span class="event">${e.text}</span>
         </div>`)
         .join('')
+    }
+  }
+
+  updateAudio({ text, isFinal, wakeDetected, wakeWord }) {
+    const el = this.els.audioStatus
+    if (el) {
+      if (wakeDetected) {
+        el.textContent = '已唤醒'
+        el.className = 'detail-val woke'
+      } else if (text) {
+        el.textContent = '识别中'
+        el.className = 'detail-val listening'
+      } else {
+        el.textContent = '监听中'
+        el.className = 'detail-val listening'
+      }
+    }
+
+    if (wakeDetected && wakeWord && this.els.wakeStatus) {
+      this.els.wakeStatus.textContent = wakeWord
+      this.els.wakeStatus.classList.add('active')
+    }
+  }
+
+  updateVolume(vol) {
+    if (this.els.volumeBar) {
+      const pct = Math.min(100, Math.max(0, vol * 100 * 2.5)) // amplify for visibility
+      this.els.volumeBar.style.height = `${pct}%`
+    }
+
+    // Set status to listening if not already woke
+    const el = this.els.audioStatus
+    if (el && !el.classList.contains('woke')) {
+      el.textContent = '监听中'
+      el.className = 'detail-val listening'
     }
   }
 
