@@ -320,18 +320,24 @@ class CustomGestureDetector {
     this.pinchThreshold = 0.3 // normalized by palm width
   }
 
-  // Check if a finger is extended (tip above PIP joint = lower y)
-  isFingerExtended(landmarks, tipIdx, pipIdx) {
-    return landmarks[tipIdx].y < landmarks[pipIdx].y
+  // Check if finger is extended using distance ratio (orientation-independent)
+  isFingerExtended(landmarks, tipIdx, pipIdx, mcpIdx) {
+    const tip = landmarks[tipIdx]
+    const pip = landmarks[pipIdx]
+    const mcp = landmarks[mcpIdx]
+    const tipDist = Math.hypot(tip.x - mcp.x, tip.y - mcp.y, tip.z - mcp.z)
+    const pipDist = Math.hypot(pip.x - mcp.x, pip.y - mcp.y, pip.z - mcp.z)
+    return tipDist > pipDist * 1.1
   }
 
-  // Thumb extension uses x-axis (extends outward from palm)
+  // Thumb extension using 3D distance ratio
   isThumbExtended(landmarks) {
     const tip = landmarks[4]
     const ip = landmarks[3]
     const mcp = landmarks[2]
-    // Thumb is extended if tip is farther from palm center than IP
-    return Math.abs(tip.x - mcp.x) > Math.abs(ip.x - mcp.x)
+    const tipDist = Math.hypot(tip.x - mcp.x, tip.y - mcp.y, tip.z - mcp.z)
+    const ipDist = Math.hypot(ip.x - mcp.x, ip.y - mcp.y, ip.z - mcp.z)
+    return tipDist > ipDist * 1.1
   }
 
   // Normalized distance between two landmarks (divided by palm width)
@@ -350,10 +356,10 @@ class CustomGestureDetector {
     if (!landmarks || landmarks.length < 21) return null
 
     const thumb = this.isThumbExtended(landmarks)
-    const index = this.isFingerExtended(landmarks, 8, 6)
-    const middle = this.isFingerExtended(landmarks, 12, 10)
-    const ring = this.isFingerExtended(landmarks, 16, 14)
-    const pinky = this.isFingerExtended(landmarks, 20, 18)
+    const index = this.isFingerExtended(landmarks, 8, 6, 5)
+    const middle = this.isFingerExtended(landmarks, 12, 10, 9)
+    const ring = this.isFingerExtended(landmarks, 16, 14, 13)
+    const pinky = this.isFingerExtended(landmarks, 20, 18, 17)
 
     const thumbIndexDist = this.pinchDistance(landmarks, 4, 8)
     const isPinching = thumbIndexDist < this.pinchThreshold
@@ -546,6 +552,7 @@ export class SenseEngine {
 
     this.customGesture = new CustomGestureDetector()
     this.actionDetector = new ActionDetector()
+    this._palmStability = {} // hand index → { gesture, startTime, positions[] }
 
     this.distanceEMA = new EMA(0.15)
     this.yawEMA = new EMA(0.2)
@@ -804,6 +811,29 @@ export class SenseEngine {
           if (custom) {
             this.lastCustomGestures.push({ hand: h, ...custom })
           }
+        }
+
+        // Palm stability filter: Open_Palm needs 500ms hold + low movement
+        if (mpGesture && mpGesture.categoryName === 'Open_Palm') {
+          const wristPt = lm[0]
+          const ps = this._palmStability[h]
+          if (ps && ps.gesture === 'Open_Palm') {
+            ps.positions.push({ x: wristPt.x, y: wristPt.y })
+            if (ps.positions.length > 15) ps.positions.shift()
+            const totalDrift = ps.positions.reduce((sum, p, i) => {
+              if (i === 0) return 0
+              return sum + Math.hypot(p.x - ps.positions[i-1].x, p.y - ps.positions[i-1].y)
+            }, 0)
+            if (totalDrift > 0.15 || now - ps.startTime < 500) {
+              // Moving too much or not held long enough — suppress
+              mpGesture._suppressed = true
+            }
+          } else {
+            this._palmStability[h] = { gesture: 'Open_Palm', startTime: now, positions: [{ x: wristPt.x, y: wristPt.y }] }
+            mpGesture._suppressed = true
+          }
+        } else {
+          this._palmStability[h] = null
         }
 
         // Action detection: feed wrist + index tip + palm center
@@ -1078,7 +1108,7 @@ export class SenseEngine {
         // 1. Check MediaPipe native gesture
         if (handResult.gestures && handResult.gestures[h] && handResult.gestures[h].length > 0) {
           const gesture = handResult.gestures[h][0]
-          if (gesture.categoryName !== 'None') {
+          if (gesture.categoryName !== 'None' && !gesture._suppressed) {
             const GESTURE_EMOJI_MAP = {
               'Closed_Fist': '✊',
               'Open_Palm': '🖐️',
