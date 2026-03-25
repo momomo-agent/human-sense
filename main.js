@@ -1,5 +1,6 @@
 import { SenseEngine } from './engine.js'
 import { Dashboard } from './dashboard.js'
+import { AudioSenseEngine } from './audio-sense.js'
 
 const video = document.getElementById('camera')
 const overlay = document.getElementById('overlay')
@@ -84,6 +85,31 @@ async function init() {
     await currentEngine.init()
 
     const dashboard = new Dashboard()
+
+    // ---- Audio / speech recognition ----
+    const audio = new AudioSenseEngine({
+      wakeWords: ['你好', 'hello', 'hey momo', 'momo'],
+      lang: 'zh-CN'
+    })
+
+    audio.onResult = (text, isFinal, wakeDetected, wakeWord) => {
+      currentEngine.updateSpeech(text, isFinal, wakeDetected, wakeWord)
+      dashboard.updateAudio({ text, isFinal, wakeDetected, wakeWord })
+    }
+
+    audio.onVolumeChange = (vol) => {
+      dashboard.updateVolume(vol)
+    }
+
+    audio.onWake = (wakeWord, fullText) => {
+      console.log('Wake word detected:', wakeWord, 'in:', fullText)
+    }
+
+    audio.start().then(ok => {
+      if (!ok) {
+        dashboard.updateAudio({ text: '浏览器不支持语音识别', isFinal: true, wakeDetected: false, wakeWord: null })
+      }
+    })
 
     // Loop
     function loop() {
