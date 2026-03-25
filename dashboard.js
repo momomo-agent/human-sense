@@ -240,7 +240,7 @@ export class Dashboard {
     }
   }
 
-  updateAudio({ text, isFinal, wakeDetected, wakeWord }) {
+  updateAudio({ text, isFinal, wakeDetected, wakeWord, confidence, reason }) {
     const el = this.els.audioStatus
     if (el) {
       if (wakeDetected) {
@@ -256,7 +256,10 @@ export class Dashboard {
     }
 
     if (wakeDetected && wakeWord && this.els.wakeStatus) {
-      this.els.wakeStatus.textContent = wakeWord
+      const pct = confidence ? `${(confidence * 100).toFixed(0)}%` : ''
+      const reasonText = reason || ''
+      this.els.wakeStatus.textContent = `${wakeWord} ${pct}`
+      this.els.wakeStatus.title = reasonText  // hover to see reason
       this.els.wakeStatus.classList.add('active')
     }
   }

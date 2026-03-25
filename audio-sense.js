@@ -1,8 +1,12 @@
 /**
- * AudioSenseEngine — speech recognition + volume monitoring
+ * AudioSenseEngine — speech recognition + volume monitoring + wake word detection
  *
  * Uses Web Speech API (webkitSpeechRecognition) for continuous speech-to-text
  * and Web Audio API (AnalyserNode) for real-time volume levels.
+ *
+ * Wake word detection uses multi-modal fusion:
+ * - With camera: silence gap + facing screen + wake word position
+ * - Without camera: silence gap + wake word at sentence start
  */
 export class AudioSenseEngine {
   constructor(options = {}) {
@@ -11,9 +15,9 @@ export class AudioSenseEngine {
     this.lang = options.lang || 'zh-CN'
 
     // Callbacks
-    this.onResult = null      // (text, isFinal, wakeWordDetected, wakeWord)
+    this.onResult = null      // (text, isFinal, wakeJudgment)
     this.onVolumeChange = null // (volume 0-1)
-    this.onWake = null         // (wakeWord, fullText)
+    this.onWake = null         // (wakeWord, fullText, judgment)
 
     this.recognition = null
     this.audioCtx = null
@@ -21,9 +25,27 @@ export class AudioSenseEngine {
     this.volumeRAF = null
     this._stopped = false
     this._supported = true
+
+    // Wake judgment state
+    this._lastSpeechTime = 0      // timestamp of last speech activity
+    this._silenceThresholdMs = 1500 // silence gap to count as "new utterance"
+    this._facing = null            // external signal: is user facing screen?
+    this._hasCamera = false        // whether camera data is available
   }
 
   get supported() { return this._supported }
+
+  /** Update visual context from camera (call from main loop) */
+  updateVisualContext(facing) {
+    this._facing = facing
+    this._hasCamera = true
+  }
+
+  /** Clear camera context (no camera available) */
+  clearVisualContext() {
+    this._facing = null
+    this._hasCamera = false
+  }
 
   async start() {
     this._stopped = false
@@ -59,25 +81,23 @@ export class AudioSenseEngine {
       }
 
       const text = isFinal ? finalText : interimText
-      const lower = text.toLowerCase()
+      const lower = text.toLowerCase().trim()
 
-      // Wake word detection
-      let wakeDetected = false
-      let matchedWakeWord = null
-      for (const w of this.wakeWords) {
-        if (lower.includes(w)) {
-          wakeDetected = true
-          matchedWakeWord = w
-          break
-        }
+      // Wake word detection with multi-modal fusion
+      const judgment = this._judgeWake(lower, text, isFinal)
+
+      // Track speech activity timing
+      if (text.length > 0) {
+        this._lastSpeechTime = Date.now()
       }
 
       if (this.onResult) {
-        this.onResult(text, isFinal, wakeDetected, matchedWakeWord)
+        this.onResult(text, isFinal, judgment)
       }
 
-      if (wakeDetected && this.onWake) {
-        this.onWake(matchedWakeWord, text)
+      if (judgment.isWake && isFinal && this.onWake) {
+        this.onWake(judgment.wakeWord, text, judgment)
+      }
       }
     }
 
@@ -142,6 +162,88 @@ export class AudioSenseEngine {
     } catch (e) {
       console.warn('Volume meter init failed:', e)
     }
+  }
+
+  /**
+   * Multi-modal wake word judgment
+   *
+   * Returns: { isWake, wakeWord, confidence, reason, signals }
+   *
+   * With camera:  (silence + facing + position) → high confidence
+   * Without camera: (silence + position) → medium confidence
+   */
+  _judgeWake(lower, originalText, isFinal) {
+    const result = { isWake: false, wakeWord: null, confidence: 0, reason: '', signals: {} }
+
+    // 1. Find wake word and its position
+    let matchedWord = null
+    let matchIdx = -1
+    for (const w of this.wakeWords) {
+      const idx = lower.indexOf(w)
+      if (idx >= 0) {
+        matchedWord = w
+        matchIdx = idx
+        break
+      }
+    }
+    if (!matchedWord) return result
+
+    result.wakeWord = matchedWord
+
+    // 2. Compute signals
+    const now = Date.now()
+    const silenceGap = now - this._lastSpeechTime
+    const isAfterSilence = this._lastSpeechTime === 0 || silenceGap > this._silenceThresholdMs
+    const isAtStart = matchIdx <= 2  // allow 1-2 chars of whitespace/punctuation
+    const isFacing = this._hasCamera ? this._facing === true : null
+
+    result.signals = {
+      silenceGap: isAfterSilence,
+      atStart: isAtStart,
+      facing: isFacing,
+      hasCamera: this._hasCamera
+    }
+
+    // 3. Score
+    let score = 0
+
+    // Silence before speaking — strong signal (someone just started talking)
+    if (isAfterSilence) score += 0.4
+
+    // Wake word at start of utterance
+    if (isAtStart) score += 0.35
+
+    // Facing screen (camera available)
+    if (this._hasCamera) {
+      if (isFacing) score += 0.25
+      // Not facing = strong negative (talking to someone else)
+      if (isFacing === false) score -= 0.3
+    } else {
+      // No camera — give position more weight
+      if (isAtStart) score += 0.1
+    }
+
+    result.confidence = Math.max(0, Math.min(1, score))
+
+    // 4. Threshold
+    if (result.confidence >= 0.5) {
+      result.isWake = true
+      // Build reason
+      const reasons = []
+      if (isAfterSilence) reasons.push('静默后开口')
+      if (isAtStart) reasons.push('句首')
+      if (isFacing === true) reasons.push('面朝屏幕')
+      result.reason = reasons.join(' + ')
+    } else {
+      // Explain why not triggered
+      const reasons = []
+      if (!isAfterSilence) reasons.push('连续说话中')
+      if (!isAtStart) reasons.push('唤醒词在句中')
+      if (isFacing === false) reasons.push('没看屏幕')
+      result.reason = reasons.join(' + ')
+    }
+
+    return result
   }
 
   stop() {
