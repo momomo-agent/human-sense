@@ -8,7 +8,7 @@ self.onmessage = async (e) => {
   if (type === 'init') {
     self.postMessage({ type: 'status', status: 'loading', message: '加载语音模型...' });
     try {
-      transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+      transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', {
         device: 'webgpu',
         dtype: 'fp32',
       });
