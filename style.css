@@ -572,6 +572,19 @@ body {
   font-weight: 600;
 }
 
+/* Model status */
+#s-model-status.model-loading {
+  color: var(--amber);
+}
+
+#s-model-status.model-ready {
+  color: var(--green);
+}
+
+#s-model-status.model-error {
+  color: var(--red);
+}
+
 /* -- Synthesis strip -- */
 .synth-strip {
   background: rgba(0,0,0,0.35);
