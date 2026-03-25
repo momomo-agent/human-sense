@@ -821,7 +821,7 @@ export class SenseEngine {
       }
     }
 
-    this.drawOverlay(faceResults, this.lastHandResult, this.lastPoseResult, this.lastObjectResult)
+    this.drawOverlay(faceResults, this.lastHandResult, this.lastPoseResult, this.lastObjectResult, this.lastCustomGestures, this.lastActions)
 
     if (faceCount === 0) {
       // No face — still extract hand/pose/seg/object data
@@ -949,7 +949,7 @@ export class SenseEngine {
     return this.lastResult
   }
 
-  drawOverlay(faceResults, handResult, poseResult, objectResult) {
+  drawOverlay(faceResults, handResult, poseResult, objectResult, customGestures, actions) {
     const canvas = this.overlay
     const ctx = this.ctx
 
@@ -1061,14 +1061,76 @@ export class SenseEngine {
           ctx.fill()
         }
 
-        // Gesture label
+        // Gesture emoji — show on screen above wrist
+        const wrist = hand[0]
+        const wristX = toX(wrist.x)
+        const wristY = toY(wrist.y)
+        let gestureEmoji = null
+        let gestureName = null
+
+        // 1. Check MediaPipe native gesture
         if (handResult.gestures && handResult.gestures[h] && handResult.gestures[h].length > 0) {
           const gesture = handResult.gestures[h][0]
           if (gesture.categoryName !== 'None') {
-            const wrist = hand[0]
-            ctx.font = '14px "Space Mono", monospace'
-            ctx.fillStyle = '#fff'
-            ctx.fillText(gesture.categoryName, toX(wrist.x) + 10, toY(wrist.y) - 10)
+            const GESTURE_EMOJI_MAP = {
+              'Closed_Fist': '✊',
+              'Open_Palm': '🖐️',
+              'Pointing_Up': '☝️',
+              'Thumb_Down': '👎',
+              'Thumb_Up': '👍',
+              'Victory': '✌️',
+              'ILoveYou': '🤟',
+            }
+            gestureEmoji = GESTURE_EMOJI_MAP[gesture.categoryName] || '🤚'
+            gestureName = gesture.categoryName
+          }
+        }
+
+        // 2. Check custom gestures (if no native match)
+        if (!gestureEmoji && customGestures) {
+          const cg = customGestures.find(g => g.hand === h)
+          if (cg) {
+            gestureEmoji = cg.emoji
+            gestureName = cg.name
+          }
+        }
+
+        // Draw gesture emoji + label
+        if (gestureEmoji) {
+          // Big emoji
+          ctx.font = '32px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText(gestureEmoji, wristX, wristY - 30)
+
+          // Label background
+          const labelText = gestureName
+          ctx.font = '13px "Inter", sans-serif'
+          const metrics = ctx.measureText(labelText)
+          const lw = metrics.width + 12
+          const lh = 20
+          const lx = wristX - lw / 2
+          const ly = wristY - 22
+
+          ctx.fillStyle = 'rgba(0,0,0,0.6)'
+          ctx.beginPath()
+          ctx.roundRect(lx, ly, lw, lh, 4)
+          ctx.fill()
+
+          ctx.fillStyle = 'rgba(255,255,255,0.9)'
+          ctx.textAlign = 'center'
+          ctx.fillText(labelText, wristX, ly + 14)
+          ctx.textAlign = 'start'
+        }
+
+        // 3. Draw action emoji (if any active actions for this hand)
+        if (actions) {
+          const handActions = actions.filter(a => true) // actions are not hand-specific currently
+          if (h === 0 && handActions.length > 0) {
+            const actionEmoji = handActions.map(a => a.emoji).join('')
+            ctx.font = '24px sans-serif'
+            ctx.textAlign = 'center'
+            ctx.fillText(actionEmoji, wristX, wristY + 30)
+            ctx.textAlign = 'start'
           }
         }
       }
