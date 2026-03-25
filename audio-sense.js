@@ -13,6 +13,8 @@ export class AudioSenseEngine {
     this.wakeWords = (options.wakeWords || ['你好', 'hello', 'hey momo', 'momo'])
       .map(w => w.toLowerCase())
     this.lang = options.lang || 'zh-CN'
+    this.serverUrl = options.serverUrl || null
+    this._backend = null  // 'sensevoice' | 'whisper'
 
     // Callbacks
     this.onResult = null      // (text, isFinal, wakeJudgment)
@@ -31,14 +33,14 @@ export class AudioSenseEngine {
     this.silenceStart = 0
     this.isSpeaking = false
     this.vadThreshold = 0.01    // RMS threshold for VAD
-    this.chunkDurationMs = 3000 // send to whisper every 3s while speaking
+    this.chunkDurationMs = 3000 // send every 3s while speaking
     this.lastChunkTime = 0
 
     // Wake judgment state
-    this._lastSpeechTime = 0      // timestamp of last speech activity
-    this._silenceThresholdMs = 1500 // silence gap to count as "new utterance"
-    this._facing = null            // external signal: is user facing screen?
-    this._hasCamera = false        // whether camera data is available
+    this._lastSpeechTime = 0
+    this._silenceThresholdMs = 1500
+    this._facing = null
+    this._hasCamera = false
   }
 
   get supported() { return this._supported }
@@ -58,12 +60,35 @@ export class AudioSenseEngine {
   async start() {
     this._stopped = false
 
-    // 1. Start Worker and load Whisper model
-    this.worker = new Worker('./whisper-worker.js', { type: 'module' })
-    this.worker.onmessage = (e) => this._handleWorkerMessage(e)
-    this.worker.postMessage({ type: 'init' })
+    // Auto-detect SenseVoice server
+    const candidates = this.serverUrl
+      ? [this.serverUrl]
+      : ['http://localhost:18906', 'http://127.0.0.1:18906']
 
-    // 2. Get microphone and set up audio capture
+    for (const url of candidates) {
+      try {
+        const r = await fetch(url + '/health', { signal: AbortSignal.timeout(1000) })
+        if (r.ok) {
+          this.serverUrl = url
+          this._backend = 'sensevoice'
+          this._modelReady = true
+          if (this.onModelStatus) this.onModelStatus('ready', `SenseVoice (${url})`)
+          console.log(`[AudioSense] Using SenseVoice: ${url}`)
+          break
+        }
+      } catch {}
+    }
+
+    // Fallback to Whisper WASM
+    if (!this._backend) {
+      this._backend = 'whisper'
+      this.worker = new Worker('./whisper-worker.js', { type: 'module' })
+      this.worker.onmessage = (e) => this._handleWorkerMessage(e)
+      this.worker.postMessage({ type: 'init' })
+      console.log('[AudioSense] Using Whisper WASM (no SenseVoice server)')
+    }
+
+    // Get microphone and set up audio capture
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       this.audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 })
@@ -131,7 +156,6 @@ export class AudioSenseEngine {
   _sendToWhisper(isFinal) {
     if (!this._modelReady || this.audioChunks.length === 0) return
 
-    // Merge Float32Array chunks
     const totalLength = this.audioChunks.reduce((sum, c) => sum + c.length, 0)
     const merged = new Float32Array(totalLength)
     let offset = 0
@@ -140,12 +164,61 @@ export class AudioSenseEngine {
       offset += chunk.length
     }
 
-    this.worker.postMessage({ type: 'transcribe', audio: merged, isFinal }, [merged.buffer])
+    if (this._backend === 'sensevoice') {
+      this._sendToSenseVoice(merged)
+    } else {
+      this.worker.postMessage({ type: 'transcribe', audio: merged, isFinal }, [merged.buffer])
+    }
 
     if (isFinal) {
       this.audioChunks = []
     }
     this.lastChunkTime = Date.now()
+  }
+
+  async _sendToSenseVoice(pcm) {
+    const numSamples = pcm.length
+    const buffer = new ArrayBuffer(44 + numSamples * 2)
+    const view = new DataView(buffer)
+    const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)) }
+    writeStr(0, 'RIFF')
+    view.setUint32(4, 36 + numSamples * 2, true)
+    writeStr(8, 'WAVE')
+    writeStr(12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true)
+    view.setUint16(22, 1, true)
+    view.setUint32(24, 16000, true)
+    view.setUint32(28, 32000, true)
+    view.setUint16(32, 2, true)
+    view.setUint16(34, 16, true)
+    writeStr(36, 'data')
+    view.setUint32(40, numSamples * 2, true)
+    for (let i = 0; i < numSamples; i++) {
+      const s = Math.max(-1, Math.min(1, pcm[i]))
+      view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+    }
+
+    try {
+      const res = await fetch(this.serverUrl + '/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'audio/wav' },
+        body: new Uint8Array(buffer),
+      })
+      const data = await res.json()
+      if (data.text) this._handleTranscription(data.text)
+    } catch (e) {
+      console.warn('[AudioSense] SenseVoice request failed:', e.message)
+    }
+  }
+
+  _handleTranscription(text) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const judgment = this._judgeWake(trimmed.toLowerCase(), trimmed, true)
+    this._lastSpeechTime = Date.now()
+    if (this.onResult) this.onResult(trimmed, true, judgment)
+    if (judgment.isWake && this.onWake) this.onWake(judgment.wakeWord, trimmed, judgment)
   }
 
   _handleWorkerMessage(e) {
@@ -157,24 +230,7 @@ export class AudioSenseEngine {
     }
 
     if (type === 'result') {
-      const trimmed = (text || '').trim()
-      if (!trimmed) return
-
-      const lower = trimmed.toLowerCase()
-
-      // Wake word detection with multi-modal fusion
-      const judgment = this._judgeWake(lower, trimmed, true)
-
-      // Track speech activity timing
-      this._lastSpeechTime = Date.now()
-
-      if (this.onResult) {
-        this.onResult(trimmed, true, judgment)
-      }
-
-      if (judgment.isWake && this.onWake) {
-        this.onWake(judgment.wakeWord, trimmed, judgment)
-      }
+      this._handleTranscription(text || '')
     }
   }
 
