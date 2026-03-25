@@ -89,8 +89,11 @@ async function init() {
     // ---- Audio / speech recognition ----
     const audio = new AudioSenseEngine({
       wakeWords: ['你好', 'hello', 'hey momo', 'momo'],
-      lang: 'zh-CN'
     })
+
+    audio.onModelStatus = (status, message) => {
+      dashboard.updateModelStatus(status, message)
+    }
 
     audio.onResult = (text, isFinal, judgment) => {
       currentEngine.updateSpeech(text, isFinal, judgment.isWake, judgment.wakeWord)
@@ -113,7 +116,7 @@ async function init() {
 
     audio.start().then(ok => {
       if (!ok) {
-        dashboard.updateAudio({ text: '浏览器不支持语音识别', isFinal: true, wakeDetected: false, wakeWord: null })
+        dashboard.updateModelStatus('error', '麦克风不可用')
       }
     })
 

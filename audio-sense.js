@@ -1,8 +1,8 @@
 /**
  * AudioSenseEngine — speech recognition + volume monitoring + wake word detection
  *
- * Uses Web Speech API (webkitSpeechRecognition) for continuous speech-to-text
- * and Web Audio API (AnalyserNode) for real-time volume levels.
+ * Uses Whisper WASM (Transformers.js) in a Web Worker for local speech-to-text
+ * and Web Audio API (ScriptProcessorNode) for real-time volume + VAD.
  *
  * Wake word detection uses multi-modal fusion:
  * - With camera: silence gap + facing screen + wake word position
@@ -18,13 +18,21 @@ export class AudioSenseEngine {
     this.onResult = null      // (text, isFinal, wakeJudgment)
     this.onVolumeChange = null // (volume 0-1)
     this.onWake = null         // (wakeWord, fullText, judgment)
+    this.onModelStatus = null  // (status, message) model loading status
 
-    this.recognition = null
+    this.worker = null
     this.audioCtx = null
-    this.analyser = null
-    this.volumeRAF = null
     this._stopped = false
     this._supported = true
+    this._modelReady = false
+
+    // Audio capture state
+    this.audioChunks = []       // Float32Array buffers
+    this.silenceStart = 0
+    this.isSpeaking = false
+    this.vadThreshold = 0.01    // RMS threshold for VAD
+    this.chunkDurationMs = 3000 // send to whisper every 3s while speaking
+    this.lastChunkTime = 0
 
     // Wake judgment state
     this._lastSpeechTime = 0      // timestamp of last speech activity
@@ -50,117 +58,123 @@ export class AudioSenseEngine {
   async start() {
     this._stopped = false
 
-    // ---- Speech Recognition ----
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      this._supported = false
-      console.warn('SpeechRecognition not supported')
-      return false
-    }
+    // 1. Start Worker and load Whisper model
+    this.worker = new Worker('./whisper-worker.js', { type: 'module' })
+    this.worker.onmessage = (e) => this._handleWorkerMessage(e)
+    this.worker.postMessage({ type: 'init' })
 
-    const recognition = new SpeechRecognition()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = this.lang
-    recognition.maxAlternatives = 1
+    // 2. Get microphone and set up audio capture
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 })
+      const source = this.audioCtx.createMediaStreamSource(stream)
 
-    recognition.onresult = (event) => {
-      // Get the latest result
-      let interimText = ''
-      let finalText = ''
-      let isFinal = false
+      // ScriptProcessorNode for PCM capture + VAD
+      const processor = this.audioCtx.createScriptProcessor(4096, 1, 1)
+      source.connect(processor)
+      processor.connect(this.audioCtx.destination)
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalText += transcript
-          isFinal = true
-        } else {
-          interimText += transcript
+      processor.onaudioprocess = (e) => {
+        if (this._stopped) return
+
+        const data = e.inputBuffer.getChannelData(0)
+        const rms = this._computeRMS(data)
+
+        if (this.onVolumeChange) this.onVolumeChange(rms)
+
+        // VAD
+        if (rms > this.vadThreshold) {
+          if (!this.isSpeaking) {
+            this.isSpeaking = true
+            this.audioChunks = []
+            this.lastChunkTime = Date.now()
+          }
+          this.silenceStart = 0
+          this.audioChunks.push(new Float32Array(data))
+        } else if (this.isSpeaking) {
+          if (!this.silenceStart) this.silenceStart = Date.now()
+          this.audioChunks.push(new Float32Array(data))
+
+          // Silence > 800ms means utterance ended
+          if (Date.now() - this.silenceStart > 800) {
+            this.isSpeaking = false
+            this._sendToWhisper(true)
+          }
+        }
+
+        // Send interim results every chunkDurationMs while speaking
+        if (this.isSpeaking && Date.now() - this.lastChunkTime > this.chunkDurationMs) {
+          this._sendToWhisper(false)
         }
       }
 
-      const text = isFinal ? finalText : interimText
-      const lower = text.toLowerCase().trim()
-
-      // Wake word detection with multi-modal fusion
-      const judgment = this._judgeWake(lower, text, isFinal)
-
-      // Track speech activity timing
-      if (text.length > 0) {
-        this._lastSpeechTime = Date.now()
-      }
-
-      if (this.onResult) {
-        this.onResult(text, isFinal, judgment)
-      }
-
-      if (judgment.isWake && isFinal && this.onWake) {
-        this.onWake(judgment.wakeWord, text, judgment)
-      }
-      }
-    }
-
-    recognition.onerror = (event) => {
-      // 'no-speech' and 'aborted' are normal — auto-restart handles them
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        console.warn('SpeechRecognition error:', event.error)
-      }
-    }
-
-    recognition.onend = () => {
-      // Auto-restart unless manually stopped
-      if (!this._stopped) {
-        try { recognition.start() } catch (e) { /* already started */ }
-      }
-    }
-
-    this.recognition = recognition
-
-    try {
-      recognition.start()
+      this._stream = stream
+      this._processor = processor
+      this._source = source
     } catch (e) {
-      console.warn('SpeechRecognition start failed:', e)
+      console.warn('Audio capture init failed:', e)
+      this._supported = false
       return false
     }
-
-    // ---- Volume monitoring via Web Audio API ----
-    this._startVolumeMeter()
 
     return true
   }
 
-  async _startVolumeMeter() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-      const source = this.audioCtx.createMediaStreamSource(stream)
-      this.analyser = this.audioCtx.createAnalyser()
-      this.analyser.fftSize = 256
-      source.connect(this.analyser)
+  _computeRMS(data) {
+    let sum = 0
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i]
+    }
+    return Math.sqrt(sum / data.length)
+  }
 
-      const dataArray = new Uint8Array(this.analyser.frequencyBinCount)
+  _sendToWhisper(isFinal) {
+    if (!this._modelReady || this.audioChunks.length === 0) return
 
-      const tick = () => {
-        if (this._stopped) return
-        this.analyser.getByteFrequencyData(dataArray)
+    // Merge Float32Array chunks
+    const totalLength = this.audioChunks.reduce((sum, c) => sum + c.length, 0)
+    const merged = new Float32Array(totalLength)
+    let offset = 0
+    for (const chunk of this.audioChunks) {
+      merged.set(chunk, offset)
+      offset += chunk.length
+    }
 
-        // RMS volume normalized to 0-1
-        let sum = 0
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i] * dataArray[i]
-        }
-        const rms = Math.sqrt(sum / dataArray.length) / 255
+    this.worker.postMessage({ type: 'transcribe', audio: merged, isFinal }, [merged.buffer])
 
-        if (this.onVolumeChange) {
-          this.onVolumeChange(rms)
-        }
+    if (isFinal) {
+      this.audioChunks = []
+    }
+    this.lastChunkTime = Date.now()
+  }
 
-        this.volumeRAF = requestAnimationFrame(tick)
+  _handleWorkerMessage(e) {
+    const { type, status, message, text } = e.data
+
+    if (type === 'status') {
+      this._modelReady = (status === 'ready')
+      if (this.onModelStatus) this.onModelStatus(status, message)
+    }
+
+    if (type === 'result') {
+      const trimmed = (text || '').trim()
+      if (!trimmed) return
+
+      const lower = trimmed.toLowerCase()
+
+      // Wake word detection with multi-modal fusion
+      const judgment = this._judgeWake(lower, trimmed, true)
+
+      // Track speech activity timing
+      this._lastSpeechTime = Date.now()
+
+      if (this.onResult) {
+        this.onResult(trimmed, true, judgment)
       }
-      this.volumeRAF = requestAnimationFrame(tick)
-    } catch (e) {
-      console.warn('Volume meter init failed:', e)
+
+      if (judgment.isWake && this.onWake) {
+        this.onWake(judgment.wakeWord, trimmed, judgment)
+      }
     }
   }
 
@@ -244,14 +258,24 @@ export class AudioSenseEngine {
   stop() {
     this._stopped = true
 
-    if (this.recognition) {
-      try { this.recognition.stop() } catch (e) { /* ok */ }
-      this.recognition = null
+    if (this.worker) {
+      this.worker.terminate()
+      this.worker = null
     }
 
-    if (this.volumeRAF) {
-      cancelAnimationFrame(this.volumeRAF)
-      this.volumeRAF = null
+    if (this._processor) {
+      this._processor.disconnect()
+      this._processor = null
+    }
+
+    if (this._source) {
+      this._source.disconnect()
+      this._source = null
+    }
+
+    if (this._stream) {
+      this._stream.getTracks().forEach(t => t.stop())
+      this._stream = null
     }
 
     if (this.audioCtx) {

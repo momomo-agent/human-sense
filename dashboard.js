@@ -52,6 +52,7 @@ export class Dashboard {
 
       // Audio section
       volumeBar: document.getElementById('volume-bar'),
+      modelStatus: document.getElementById('s-model-status'),
       audioStatus: document.getElementById('s-audio-status'),
       wakeStatus: document.getElementById('s-wake-status'),
     }
@@ -276,6 +277,16 @@ export class Dashboard {
       el.textContent = '监听中'
       el.className = 'detail-val listening'
     }
+  }
+
+  updateModelStatus(status, message) {
+    const el = this.els.modelStatus
+    if (!el) return
+    el.textContent = message
+    el.className = 'detail-val'
+    if (status === 'loading') el.classList.add('model-loading')
+    else if (status === 'ready') el.classList.add('model-ready')
+    else if (status === 'error') el.classList.add('model-error')
   }
 
   gestureToEmoji(name) {
