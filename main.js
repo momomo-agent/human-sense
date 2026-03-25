@@ -82,11 +82,10 @@ async function init() {
 
     // Init engine
     currentEngine = new SenseEngine(video, overlay)
-    await currentEngine.init()
 
     const dashboard = new Dashboard()
 
-    // ---- Audio / speech recognition ----
+    // ---- Audio / speech recognition (independent of engine) ----
     const audio = new AudioSenseEngine({
       wakeWords: ['你好', 'hello', 'hey momo', 'momo'],
     })
@@ -96,7 +95,7 @@ async function init() {
     }
 
     audio.onResult = (text, isFinal, judgment) => {
-      currentEngine.updateSpeech(text, isFinal, judgment.isWake, judgment.wakeWord)
+      if (currentEngine) currentEngine.updateSpeech(text, isFinal, judgment.isWake, judgment.wakeWord)
       dashboard.updateAudio({
         text, isFinal,
         wakeDetected: judgment.isWake,
@@ -119,6 +118,14 @@ async function init() {
         dashboard.updateModelStatus('error', '麦克风不可用')
       }
     })
+
+    // Init MediaPipe (may fail on some devices — audio still works)
+    try {
+      await currentEngine.init()
+    } catch (e) {
+      console.warn('Engine init failed (audio still active):', e.message)
+      document.getElementById('synthesis-text').textContent = `视觉引擎不可用: ${e.message}`
+    }
 
     // Loop
     function loop() {
