@@ -92,17 +92,23 @@ async function init() {
       lang: 'zh-CN'
     })
 
-    audio.onResult = (text, isFinal, wakeDetected, wakeWord) => {
-      currentEngine.updateSpeech(text, isFinal, wakeDetected, wakeWord)
-      dashboard.updateAudio({ text, isFinal, wakeDetected, wakeWord })
+    audio.onResult = (text, isFinal, judgment) => {
+      currentEngine.updateSpeech(text, isFinal, judgment.isWake, judgment.wakeWord)
+      dashboard.updateAudio({
+        text, isFinal,
+        wakeDetected: judgment.isWake,
+        wakeWord: judgment.wakeWord,
+        confidence: judgment.confidence,
+        reason: judgment.reason
+      })
     }
 
     audio.onVolumeChange = (vol) => {
       dashboard.updateVolume(vol)
     }
 
-    audio.onWake = (wakeWord, fullText) => {
-      console.log('Wake word detected:', wakeWord, 'in:', fullText)
+    audio.onWake = (wakeWord, fullText, judgment) => {
+      console.log('🟢 Wake:', wakeWord, '|', judgment.reason, `(${(judgment.confidence * 100).toFixed(0)}%)`, '|', fullText)
     }
 
     audio.start().then(ok => {
@@ -116,6 +122,12 @@ async function init() {
       const result = currentEngine.detect()
       if (result) {
         dashboard.update(result)
+
+        // Feed visual context to audio engine for wake word fusion
+        if (result.presence) {
+          audio.updateVisualContext(result.presence.facing)
+        }
+
         // Press 's' to dump sense frame to console
         if (window.__dumpSense && result.sense) {
           console.log('SenseFrame:', JSON.stringify(result.sense, null, 2))
