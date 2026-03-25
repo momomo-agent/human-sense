@@ -213,14 +213,9 @@ export class AudioSenseEngine {
     // Wake word at start of utterance
     if (isAtStart) score += 0.35
 
-    // Facing screen (camera available)
-    if (this._hasCamera) {
-      if (isFacing) score += 0.25
-      // Not facing = strong negative (talking to someone else)
-      if (isFacing === false) score -= 0.3
-    } else {
-      // No camera — give position more weight
-      if (isAtStart) score += 0.1
+    // Facing screen (camera available) — bonus signal, never penalty
+    if (this._hasCamera && isFacing) {
+      score += 0.2
     }
 
     result.confidence = Math.max(0, Math.min(1, score))
